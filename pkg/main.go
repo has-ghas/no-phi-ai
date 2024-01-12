@@ -13,13 +13,13 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	"github.com/has-ghas/no-phi-ai/pkg/events"
+	"github.com/has-ghas/no-phi-ai/pkg/handlers"
 )
 
 func main() {
 	// define flags
 	debug := flag.Bool("debug", false, "sets log level to debug")
-	configPath := flag.String("config", "config/test.yml", "local relative path to the config file")
+	configPath := flag.String("config", "../config/test.yml", "local relative path to the config file")
 
 	// parse flags
 	flag.Parse()
@@ -45,7 +45,7 @@ func main() {
 	cc, err := githubapp.NewDefaultCachingClientCreator(
 		config.Github,
 		githubapp.WithClientUserAgent(cfg.AppUserAgent),
-		githubapp.WithClientTimeout(3 * time.Second),
+		githubapp.WithClientTimeout(3*time.Second),
 		githubapp.WithClientCaching(false, func() httpcache.Cache { return httpcache.NewMemoryCache() }),
 		githubapp.WithClientMiddleware(
 			githubapp.ClientMetrics(metricsRegistry),
@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// define the event handlers
-	prCommentHandler := &events.PRCommentHandler{
+	prCommentHandler := &handlers.PRCommentHandler{
 		ClientCreator: cc,
 		Preamble:      config.App.PullRequestPreamble,
 	}
@@ -70,7 +70,7 @@ func main() {
 	// run the HTTP server
 	addr := fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port)
 	logger.Info().Msgf("starting server on %s", addr)
-	if err = http.ListenAndServe(addr, nil) ; err != nil {
+	if err = http.ListenAndServe(addr, nil); err != nil {
 		panic(err)
 	}
 }

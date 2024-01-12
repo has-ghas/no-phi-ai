@@ -1,10 +1,11 @@
 _app_name=no-phi-ai
+_app_pkg_dir=pkg
 _build_dir=build
 _build_mode=pie
-_build_packages="./pkg/..."
+_build_packages="./${_app_pkg_dir}/..."
 _coverage_out_file=coverage.out
 
-_cmd_go_build=go build -buildmode="${_build_mode}" -o ${_build_dir}/${_app_name}
+_cmd_go_build=go build -buildmode="${_build_mode}" -o ../${_build_dir}/${_app_name}
 _cmd_go_cover=go tool cover -func=${_coverage_out_file}
 _cmd_go_fmt=go fmt ${_build_packages}
 _cmd_go_tidy=go mod tidy
@@ -22,14 +23,14 @@ default: build
 build: build_prep build_only
 
 build_only:
-	${_cmd_go_build} \
+	cd ${_app_pkg_dir} && ${_cmd_go_build} \
 		&& echo "${_msg_success} build_only" \
 		|| (echo "${_msg_error} build_only" && exit 70)
 
 build_prep: format tidy test
 
 clean:
-	rm -rf ./${_build_dir}/${_app_name} ./vendor/ Gopkg.lock
+	rm -rf ./${_build_dir}/${_app_name} ./vendor/ Gopkg.lock ${_coverage_out_file}
 
 format:
 	${_cmd_go_fmt} \
