@@ -15,7 +15,7 @@ _msg="${_app_name} : make"
 _msg_error="ERROR : ${_msg}"
 _msg_success="SUCCESS : ${_msg}"
 
-default: build_only
+default: build
 
 .PHONY: build clean deploy format package remove test tidy
 
@@ -24,7 +24,7 @@ build: build_prep build_only
 build_only:
 	${_cmd_go_build} \
 		&& echo "${_msg_success} build_only" \
-		|| (echo "${_msg_error} build_only" && exit 30)
+		|| (echo "${_msg_error} build_only" && exit 70)
 
 build_prep: format tidy test
 
@@ -32,14 +32,14 @@ clean:
 	rm -rf ./${_build_dir}/${_app_name} ./vendor/ Gopkg.lock
 
 format:
-	${_cmd_go_mod_fmt} \
+	${_cmd_go_fmt} \
 		&& echo "${_msg_success} format" \
 		|| (echo "${_msg_error} format" && exit 40)
 
 test:
 	echo $(_cmd_test) | xargs ${_cmd_go_test} \
 		&& echo "${_msg_success} test" \
-		|| (echo "${_msg_error} test" && exit 50)
+		|| (echo "${_msg_error} test" && exit 60)
 
 test_build: tidy build_only test
 
@@ -49,5 +49,5 @@ test_cover: test
 tidy:
 	${_cmd_go_tidy} \
 		&& echo "${_msg_success} tidy" \
-		|| (echo "${_msg_error} tidy" && exit 60)
+		|| (echo "${_msg_error} tidy" && exit 50)
 

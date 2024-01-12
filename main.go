@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -16,16 +17,31 @@ import (
 )
 
 func main() {
-	config, err := cfg.ReadConfig("config/test.yml")
+	// define flags
+	debug := flag.Bool("debug", false, "sets log level to debug")
+	configPath := flag.String("config", "config/test.yml", "local relative path to the config file")
+
+	// parse flags
+	flag.Parse()
+
+	// setup logger and level
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if *debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
+	logger.Debug().Msgf("logger level=%s", zerolog.GlobalLevel())
+	zerolog.DefaultContextLogger = &logger
+
+	// load config
+	config, err := cfg.ReadConfig(*configPath)
 	if err != nil {
 		panic(err)
 	}
-
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	zerolog.DefaultContextLogger = &logger
+	logger.Debug().Msgf("loaded YAML config from path=%s", *configPath)
 
 	metricsRegistry := metrics.DefaultRegistry
-
+	// generate a client for interacting with GitHub APIs
 	cc, err := githubapp.NewDefaultCachingClientCreator(
 		config.Github,
 		githubapp.WithClientUserAgent(cfg.AppUserAgent),
@@ -39,19 +55,22 @@ func main() {
 		panic(err)
 	}
 
+	// define the event handlers
 	prCommentHandler := &events.PRCommentHandler{
 		ClientCreator: cc,
 		Preamble:      config.App.PullRequestPreamble,
 	}
 
+	// register event handlers with a new/default event dispatcher
 	webhookHandler := githubapp.NewDefaultEventDispatcher(config.Github, prCommentHandler)
 
+	// add the HTTP route associated with the webhook handler
 	http.Handle(githubapp.DefaultWebhookRoute, webhookHandler)
 
+	// run the HTTP server
 	addr := fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port)
-	logger.Info().Msgf("Starting server on %s...", addr)
-	err = http.ListenAndServe(addr, nil)
-	if err != nil {
+	logger.Info().Msgf("starting server on %s", addr)
+	if err = http.ListenAndServe(addr, nil) ; err != nil {
 		panic(err)
 	}
 }
