@@ -12,21 +12,22 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type PRCommentHandler struct {
+type IssueCommentHandler struct {
 	githubapp.ClientCreator
 
 	Preamble string
 }
 
-func (h *PRCommentHandler) Handles() []string {
-	return []string{"issue_comment"}
+func (h *IssueCommentHandler) Handles() []string {
+	return []string{EventTypeIssueComment}
 }
 
-func (h *PRCommentHandler) Handle(ctx context.Context, eventType, deliveryID string, payload []byte) error {
+func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID string, payload []byte) error {
 	var event github.IssueCommentEvent
 	if err := json.Unmarshal(payload, &event); err != nil {
-		return errors.Wrap(err, "failed to parse issue comment event payload")
+		return errors.Wrap(err, "failed to parse payload for event type="+EventTypeIssueComment)
 	}
+	zerolog.Ctx(ctx).Debug().Msgf("%s received webhook event type=%s", h.name(), eventType)
 
 	if !event.GetIssue().IsPullRequest() {
 		zerolog.Ctx(ctx).Debug().Msg("issue comment event is not for a pull request")
@@ -70,4 +71,9 @@ func (h *PRCommentHandler) Handle(ctx context.Context, eventType, deliveryID str
 	}
 
 	return nil
+}
+
+// IssueCommentHandler.name() method is NOT required by any interface.
+func (h *IssueCommentHandler) name() string {
+	return "IssueCommentHandler"
 }

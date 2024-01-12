@@ -18,7 +18,7 @@ import (
 
 func main() {
 	// define flags
-	debug := flag.Bool("debug", false, "sets log level to debug")
+	debug := flag.Bool("debug", false, "enable logging at debug level")
 	configPath := flag.String("config", "../config/test.yml", "local relative path to the config file")
 
 	// parse flags
@@ -56,16 +56,31 @@ func main() {
 	}
 
 	// define the event handlers
-	prCommentHandler := &handlers.PRCommentHandler{
+	installationHandler := &handlers.InstallationHandler{
+		ClientCreator: cc,
+	}
+	issueCommentHandler := &handlers.IssueCommentHandler{
 		ClientCreator: cc,
 		Preamble:      config.App.PullRequestPreamble,
 	}
+	pullRequestHandler := &handlers.PullRequestHandler{
+		ClientCreator: cc,
+	}
+	pushHandler := &handlers.PushHandler{
+		ClientCreator: cc,
+	}
 
 	// register event handlers with a new/default event dispatcher
-	webhookHandler := githubapp.NewDefaultEventDispatcher(config.Github, prCommentHandler)
+	eventDispatcher := githubapp.NewDefaultEventDispatcher(
+		config.Github,
+		installationHandler,
+		issueCommentHandler,
+		pullRequestHandler,
+		pushHandler,
+	)
 
 	// add the HTTP route associated with the webhook handler
-	http.Handle(githubapp.DefaultWebhookRoute, webhookHandler)
+	http.Handle(githubapp.DefaultWebhookRoute, eventDispatcher)
 
 	// run the HTTP server
 	addr := fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port)
