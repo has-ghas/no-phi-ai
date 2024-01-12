@@ -1,4 +1,4 @@
-package events
+package handlers
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func (h *PRCommentHandler) Handle(ctx context.Context, eventType, deliveryID str
 	}
 
 	if !event.GetIssue().IsPullRequest() {
-		zerolog.Ctx(ctx).Debug().Msg("Issue comment event is not for a pull request")
+		zerolog.Ctx(ctx).Debug().Msg("issue comment event is not for a pull request")
 		return nil
 	}
 
@@ -55,18 +55,18 @@ func (h *PRCommentHandler) Handle(ctx context.Context, eventType, deliveryID str
 	body := event.GetComment().GetBody()
 
 	if strings.HasSuffix(author, "[bot]") {
-		logger.Debug().Msg("Issue comment was created by a bot")
+		logger.Debug().Msg("issue comment was created by a bot")
 		return nil
 	}
 
-	logger.Debug().Msgf("Echoing comment on %s/%s#%d by %s", repoOwner, repoName, prNum, author)
+	logger.Debug().Msgf("echoing comment on %s/%s#%d by %s", repoOwner, repoName, prNum, author)
 	msg := fmt.Sprintf("%s\n%s said\n```\n%s\n```\n", h.Preamble, author, body)
 	prComment := github.IssueComment{
 		Body: &msg,
 	}
 
 	if _, _, err := client.Issues.CreateComment(ctx, repoOwner, repoName, prNum, &prComment); err != nil {
-		logger.Error().Err(err).Msg("Failed to comment on pull request")
+		logger.Error().Err(err).Msg("failed to comment on pull request")
 	}
 
 	return nil
