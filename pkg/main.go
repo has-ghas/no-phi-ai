@@ -13,7 +13,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	"github.com/has-ghas/no-phi-ai/pkg/handlers"
+	"github.com/has-ghas/no-phi-ai/pkg/server/handlers"
 )
 
 func main() {
