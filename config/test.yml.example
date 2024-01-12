@@ -1,6 +1,7 @@
 ---
 
 app:
+  log_level: 'info'
   name: 'no-phi-ai-test'
   pull_request_preamble: 'Tagged by no-phi-ai-test :'
 
