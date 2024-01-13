@@ -15,9 +15,10 @@ import (
 
 // Config struct is the top-level configuration object for the app.
 type Config struct {
-	App    AppConfig        `yaml:"app"`
-	GitHub githubapp.Config `yaml:"github"`
-	Server ServerConfig     `yaml:"server"`
+	App     AppConfig        `yaml:"app"`
+	AzureAI AzureAIConfig    `yaml:"azure_ai"`
+	GitHub  githubapp.Config `yaml:"github"`
+	Server  ServerConfig     `yaml:"server"`
 }
 
 // ServerConfig struct contains the configuration used to start the HTTP server.
@@ -37,7 +38,7 @@ type AppConfig struct {
 type AzureAIConfig struct {
 	AuthKey             string  `yaml:"auth_key"`
 	ConfidenceThreshold float64 `yaml:"confidence_threshold"`
-	Endpoint            string  `yaml:"endpoint"`
+	Service             string  `yaml:"service"`
 }
 
 // ParseConfig() function parses the config file and environment variables.

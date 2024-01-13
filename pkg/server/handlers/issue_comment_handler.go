@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+
 	//"fmt"
 	//"strings"
 
@@ -10,11 +11,14 @@ import (
 	"github.com/palantir/go-githubapp/githubapp"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
 
 type IssueCommentHandler struct {
 	githubapp.ClientCreator
 
+	AI       *az.EntityDetectionAI
 	Preamble string
 }
 
@@ -34,6 +38,31 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 	if !event.GetIssue().IsPullRequest() {
 		zerolog.Ctx(ctx).Debug().Msg("issue comment event is not for a pull request")
 		return nil
+	}
+
+	// create a slice of documents to send to Azure AI Language service
+	documents := []az.Document{}
+	// add documents to the slice using data from text fields in the webhook event
+	if eventComment := event.GetComment().GetBody(); eventComment != "" {
+		document := az.NewDocument(event.GetComment().GetURL(), eventComment, "en")
+		documents = append(documents, document)
+	}
+	// TODO
+
+	if len(documents) > 0 {
+		// create a new request to detect PII entities in the documents
+		req := az.NewPiiEntityRecognitionRequest(documents)
+
+		// send the request to the Azure AI Language service
+		if err := h.AI.DetectPiiEntities(ctx, req); err != nil {
+			zerolog.Ctx(ctx).Debug().Msg(err.Error())
+			return err
+		}
+		zerolog.Ctx(ctx).Debug().Msgf("no PII/PHI entities detected in %d documents", len(documents))
+	} else {
+		err := errors.New("no documents to process")
+		zerolog.Ctx(ctx).Debug().Msg(err.Error())
+		return err
 	}
 
 	/*

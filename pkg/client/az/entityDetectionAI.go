@@ -2,6 +2,7 @@ package az
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,29 +10,29 @@ import (
 	"net/http"
 )
 
-// EntityDetectionEngine struct provides methods for (1) sending requests to
+// EntityDetectionAI struct provides methods for (1) sending requests to
 // detect entities of interest in natural language documents and (2) processing
 // responses from the Azure AI Language service.
-type EntityDetectionEngine struct {
+type EntityDetectionAI struct {
 	client     *http.Client
 	confidence float64
 	endpoint   string
 	key        string
 }
 
-// NewEntityDetectionEngine() function requires the Azure service host and
-// authentication key as inputs, and returns an initialized EntityDetectionEngine.
-func NewEntityDetectionEngine(service, key string) (*EntityDetectionEngine, error) {
+// NewEntityDetectionAI() function requires the Azure service host and
+// authentication key as inputs, and returns an initialized EntityDetectionAI.
+func NewEntityDetectionAI(service, key string) (*EntityDetectionAI, error) {
 	if len(key) == 0 {
-		err := errors.New("EntityDetectionEngine requires a valid authentication key")
+		err := errors.New("EntityDetectionAI requires a valid authentication key")
 		return nil, err
 	}
 	if len(service) == 0 {
-		err := errors.New("EntityDetectionEngine requires a valid service address")
+		err := errors.New("EntityDetectionAI requires a valid service address")
 		return nil, err
 	}
 
-	return &EntityDetectionEngine{
+	return &EntityDetectionAI{
 		client:     &http.Client{},
 		confidence: DefaultConfidenceMinimum,
 		endpoint:   fmt.Sprintf("%s/%s", service, DefaultDetectionApi),
@@ -40,30 +41,30 @@ func NewEntityDetectionEngine(service, key string) (*EntityDetectionEngine, erro
 }
 
 // GetServiceEndpoint() method return the full URL of the service API endpoint
-func (ede *EntityDetectionEngine) GetServiceEndpoint(service string) string {
-	return ede.endpoint
+func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
+	return ai.endpoint
 }
 
 // DetectPiiEntities() method accepts a PiiEntityRecognitionRequest as input and
 // returns an error (or nil) status depending upon the PiiEntityRecognitionResponse
 // from the Azure AI language service.
-func (ede *EntityDetectionEngine) DetectPiiEntities(requestData *PiiEntityRecognitionRequest) error {
+func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest) error {
 	requestBytes, err := json.Marshal(*requestData)
 	if err != nil {
 		fmt.Println("error marshalling data for entity recognition request:", err)
 		return err
 	}
 
-	req, err := http.NewRequest("POST", ede.endpoint, bytes.NewBuffer(requestBytes))
+	req, err := http.NewRequest("POST", ai.endpoint, bytes.NewBuffer(requestBytes))
 	if err != nil {
 		fmt.Println("error creating entity recognition request:", err)
 		return err
 	}
 
-	req.Header.Add("Ocp-Apim-Subscription-Key", ede.key)
+	req.Header.Add("Ocp-Apim-Subscription-Key", ai.key)
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := ede.client.Do(req)
+	resp, err := ai.client.Do(req)
 	if err != nil {
 		fmt.Println("error executing entity recognition request:", err)
 		return err
@@ -86,7 +87,7 @@ func (ede *EntityDetectionEngine) DetectPiiEntities(requestData *PiiEntityRecogn
 	for _, doc := range textResponse.Results.Documents {
 		var entities []Entity
 		for _, entity := range doc.Entities {
-			if entity.ConfidenceScore >= ede.confidence {
+			if entity.ConfidenceScore >= ai.confidence {
 				entities = append(entities, entity)
 			}
 		}
