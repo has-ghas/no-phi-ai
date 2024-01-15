@@ -84,7 +84,7 @@ func Run() error {
 
 	// run the HTTP server
 	addr := fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port)
-	log.Info().Msgf("starting server on %s", addr)
+	log.Info().Msgf("starting HTTP server on %s", addr)
 	if err = http.ListenAndServe(addr, nil); err != nil {
 		return err
 	}

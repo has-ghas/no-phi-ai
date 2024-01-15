@@ -65,6 +65,7 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 		return err
 	}
 
+	// TODO : remove/replace GH issue comment handling code
 	/*
 		repo := event.GetRepo()
 		prNum := event.GetIssue().GetNumber()

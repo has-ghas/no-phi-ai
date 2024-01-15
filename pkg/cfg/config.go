@@ -13,20 +13,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-// Config struct is the top-level configuration object for the app.
-type Config struct {
-	App     AppConfig        `yaml:"app"`
-	AzureAI AzureAIConfig    `yaml:"azure_ai"`
-	GitHub  githubapp.Config `yaml:"github"`
-	Server  ServerConfig     `yaml:"server"`
-}
-
-// ServerConfig struct contains the configuration used to start the HTTP server.
-type ServerConfig struct {
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
-}
-
 // AppConfig struct contains the configuration items used by the running app.
 type AppConfig struct {
 	LogLevel            string `yaml:"log_level"`
@@ -41,57 +27,22 @@ type AzureAIConfig struct {
 	Service             string  `yaml:"service"`
 }
 
-// ParseConfig() function parses the config file and environment variables.
-func ParseConfig() (*Config, error) {
-	// define flags
-	configPath := flag.String("config", "", "local relative path to the config file")
-
-	// parse flags
-	flag.Parse()
-
-	c, err := configFileRead(*configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := configEnvOverride(c); err != nil {
-		return nil, err
-	}
-
-	// setup logger and level
-	setupLogger(c)
-
-	return c, nil
+// ServerConfig struct contains the configuration used to start the HTTP server.
+type ServerConfig struct {
+	Address string `yaml:"address"`
+	Port    int    `yaml:"port"`
 }
 
-// setupLogger() function sets up logging for the app.
-func setupLogger(c *Config) {
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
-
-	// set the global log level
-	switch strings.ToLower(c.App.LogLevel) {
-	case "debug":
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "err", "error":
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	case "info":
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	case "trace":
-		zerolog.SetGlobalLevel(zerolog.TraceLevel)
-	case "warn", "warning":
-		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	default:
-		zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	}
-
-	zerolog.DefaultContextLogger = &logger
-	logger.Info().Msgf("%s app using log_level=%s", c.App.Name, zerolog.GlobalLevel())
-
-	return
+// Config struct is the top-level configuration object for the app.
+type Config struct {
+	App     AppConfig        `yaml:"app"`
+	AzureAI AzureAIConfig    `yaml:"azure_ai"`
+	GitHub  githubapp.Config `yaml:"github"`
+	Server  ServerConfig     `yaml:"server"`
 }
 
-// configEnvOverride() function overrides config values with values from environment variables.
-func configEnvOverride(c *Config) error {
+// envOverride() method overrides *Config values with values from environment variables.
+func (c *Config) envOverride() error {
 	if appName := os.Getenv(NOPHI_APP_NAME); appName != "" {
 		c.App.Name = appName
 	}
@@ -131,9 +82,90 @@ func configEnvOverride(c *Config) error {
 	return nil
 }
 
-// configFileRead() function reads config data from the input file path, or returns an
-// empty config if path is empty.
-func configFileRead(path string) (*Config, error) {
+// setupLogger() method uses the Config settings to setup logging
+// for the app.
+func (c *Config) setupLogger() {
+	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
+
+	// set the global log level
+	switch strings.ToLower(c.App.LogLevel) {
+	case "debug":
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	case "err", "error":
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	case "info":
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	case "trace":
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	case "warn", "warning":
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
+	default:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
+
+	zerolog.DefaultContextLogger = &logger
+	logger.Info().Msgf("%s app using log_level=%s", c.App.Name, zerolog.GlobalLevel())
+
+	return
+}
+
+// verify() method returns an error if a required value has not
+// been set in the Config, sets defaults for optional values, and/or
+// returns a nil error if all required values are set.
+func (c *Config) verify() (e error) {
+	// check the c.App config values
+	if c.App.Name == "" {
+		c.App.Name = DefaultAppName
+	}
+	if c.App.LogLevel == "" {
+		c.App.LogLevel = DefaultAppLogLevel
+	}
+
+	// check the c.AzureAI config values
+	if c.AzureAI.Service == "" {
+		e = errors.New("missing required config value: azure_ai.service")
+		return
+	}
+	if c.AzureAI.AuthKey == "" {
+		e = errors.New("missing required config value: azure_ai.auth_key")
+		return
+	}
+	if c.AzureAI.ConfidenceThreshold == 0 {
+		c.AzureAI.ConfidenceThreshold = DefaultConfidenceThreshold
+	}
+
+	// check the c.GitHub config values
+	if c.GitHub.App.IntegrationID == 0 {
+		e = errors.New("missing required config value: github.app.integration_id")
+		return
+	}
+	if c.GitHub.App.PrivateKey == "" {
+		e = errors.New("missing required config value: github.app.private_key")
+		return
+	}
+	if c.GitHub.App.WebhookSecret == "" {
+		e = errors.New("missing required config value: github.app.webhook_secret")
+		return
+	}
+	if c.GitHub.V3APIURL == "" {
+		c.GitHub.V3APIURL = DefaultGitHubV3APIURL
+	}
+
+	// check the c.Server config values
+	if c.Server.Address == "" {
+		c.Server.Address = DefaultServerAddress
+	}
+	if c.Server.Port == 0 {
+		c.Server.Port = DefaultServerPort
+	}
+
+	return
+}
+
+// readConfigFile() function reads config data from the input file path,
+// or returns an empty Config if path is empty in order to allow for the
+// entire config to be provided via environment variables.
+func readConfigFile(path string) (*Config, error) {
 	var c Config
 
 	if path == "" {
@@ -152,4 +184,37 @@ func configFileRead(path string) (*Config, error) {
 	log.Debug().Msgf("loaded YAML config from path=%s", path)
 
 	return &c, nil
+}
+
+// ParseConfig() function parses the config file and environment variables.
+func ParseConfig() (*Config, error) {
+	// define flags
+	configPath := flag.String("config", "", "local relative path to the config file")
+
+	// parse flags
+	flag.Parse()
+
+	if *configPath == "" {
+		if envConfigPath, found := os.LookupEnv(NOPHI_CONFIG_PATH); found {
+			*configPath = envConfigPath
+		}
+	}
+
+	c, err := readConfigFile(*configPath)
+	if err != nil {
+		return c, err
+	}
+
+	if err := c.envOverride(); err != nil {
+		return c, err
+	}
+
+	if err := c.verify(); err != nil {
+		return c, err
+	}
+
+	// setup logger and level
+	c.setupLogger()
+
+	return c, nil
 }
