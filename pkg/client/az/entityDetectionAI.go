@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/rs/zerolog/log"
 )
 
 // EntityDetectionAI struct provides methods for (1) sending requests to
@@ -22,21 +25,21 @@ type EntityDetectionAI struct {
 
 // NewEntityDetectionAI() function requires the Azure service host and
 // authentication key as inputs, and returns an initialized EntityDetectionAI.
-func NewEntityDetectionAI(service, key string) (*EntityDetectionAI, error) {
-	if len(key) == 0 {
+func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
+	if len(c.AzureAI.AuthKey) == 0 {
 		err := errors.New("EntityDetectionAI requires a valid authentication key")
 		return nil, err
 	}
-	if len(service) == 0 {
+	if len(c.AzureAI.Service) == 0 {
 		err := errors.New("EntityDetectionAI requires a valid service address")
 		return nil, err
 	}
 
 	return &EntityDetectionAI{
 		client:     &http.Client{},
-		confidence: DefaultConfidenceMinimum,
-		endpoint:   fmt.Sprintf("%s/%s", service, DefaultDetectionApi),
-		key:        key,
+		confidence: c.AzureAI.ConfidenceThreshold,
+		endpoint:   fmt.Sprintf("%s/%s", c.AzureAI.Service, DefaultDetectionApi),
+		key:        c.AzureAI.AuthKey,
 	}, nil
 }
 
@@ -51,13 +54,15 @@ func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
 func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest) error {
 	requestBytes, err := json.Marshal(*requestData)
 	if err != nil {
-		fmt.Println("error marshalling data for entity recognition request:", err)
+		log.Ctx(ctx).Error().Msgf("error marshalling data for entity recognition request: %s", err)
 		return err
 	}
+	// TODO : remove debug logging of requestBytes
+	log.Ctx(ctx).Debug().Msgf("entity detection request JSON:\n%s", string(requestBytes))
 
 	req, err := http.NewRequest("POST", ai.endpoint, bytes.NewBuffer(requestBytes))
 	if err != nil {
-		fmt.Println("error creating entity recognition request:", err)
+		log.Ctx(ctx).Error().Msgf("error creating entity recognition request: %s", err)
 		return err
 	}
 
@@ -66,21 +71,24 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 
 	resp, err := ai.client.Do(req)
 	if err != nil {
-		fmt.Println("error executing entity recognition request:", err)
+		log.Ctx(ctx).Error().Msgf("error executing entity recognition request: %s", err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("error reading entity recognition response body:", err)
+		log.Ctx(ctx).Error().Msgf("error reading entity recognition response body: %s", err)
 		return err
 	}
+	log.Ctx(ctx).Debug().Msgf("entity detection AI confidence threshold: %f", ai.confidence)
+	// TODO : remove debug logging of responseBody
+	log.Ctx(ctx).Debug().Msgf("entity detection response body:\n%s", string(responseBody))
 
 	var textResponse PiiEntityRecognitionResults
 	err = json.Unmarshal(responseBody, &textResponse)
 	if err != nil {
-		fmt.Println("error unmarshalling entity recognition response body:", err)
+		log.Ctx(ctx).Error().Msgf("error unmarshalling entity recognition response body: %s", err)
 		return err
 	}
 
@@ -103,10 +111,11 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 			}
 			resultBytes, err := json.MarshalIndent(result, "", "  ")
 			if err != nil {
-				fmt.Println("error marshalling result:", err)
+				log.Ctx(ctx).Error().Msgf("error marshalling result within entity recognition response: %s", err)
 				return err
 			}
-			fmt.Println(string(resultBytes))
+			// TODO : remove debug logging of resultBytes
+			log.Ctx(ctx).Debug().Msgf("entity detection result:\n%s", string(resultBytes))
 		}
 	}
 

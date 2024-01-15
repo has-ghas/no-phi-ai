@@ -28,6 +28,8 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	// TODO : remove debug logging of confidence threshold
+	log.Debug().Msgf("confidence threshold: %f", config.AzureAI.ConfidenceThreshold)
 
 	// TODO
 	metricsRegistry := metrics.DefaultRegistry
@@ -49,7 +51,7 @@ func Run() error {
 
 	// create a common *az.EntityDetectionAI, which can be used for
 	// detecting "entities" of interest via the Azure AI Language service
-	ai, ai_err := az.NewEntityDetectionAI(config.AzureAI.Service, config.AzureAI.AuthKey)
+	ai, ai_err := az.NewEntityDetectionAI(config)
 	if ai_err != nil {
 		return ai_err
 	}

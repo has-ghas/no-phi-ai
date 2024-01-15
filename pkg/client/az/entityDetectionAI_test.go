@@ -1,10 +1,17 @@
 package az
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+)
 
 func TestNewEntityDetectionAI(t *testing.T) {
 	// Test case 1: Valid service and key
-	engine, err := NewEntityDetectionAI("https://example.com", "valid-key")
+	c1 := &cfg.Config{}
+	c1.AzureAI.AuthKey = "valid-key"
+	c1.AzureAI.Service = "https://example.com"
+	engine, err := NewEntityDetectionAI(c1)
 	if err != nil {
 		t.Errorf("Expected no error, but got: %v", err)
 	}
@@ -13,7 +20,10 @@ func TestNewEntityDetectionAI(t *testing.T) {
 	}
 
 	// Test case 2: Empty key
-	engine, err = NewEntityDetectionAI("https://example.com", "")
+	c2 := &cfg.Config{}
+	c2.AzureAI.AuthKey = ""
+	c2.AzureAI.Service = "https://example.com"
+	engine, err = NewEntityDetectionAI(c2)
 	if err == nil {
 		t.Error("Expected error, but got nil")
 	}
@@ -25,7 +35,10 @@ func TestNewEntityDetectionAI(t *testing.T) {
 	}
 
 	// Test case 3: Empty service
-	engine, err = NewEntityDetectionAI("", "valid-key")
+	c3 := &cfg.Config{}
+	c3.AzureAI.AuthKey = "valid-key"
+	c3.AzureAI.Service = ""
+	engine, err = NewEntityDetectionAI(c3)
 	if err == nil {
 		t.Error("Expected error, but got nil")
 	}

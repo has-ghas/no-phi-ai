@@ -8,7 +8,7 @@ app:
 azure_ai:
   auth_key: 'YOUR-KEY-HERE'
   confidence_threshold: 0.6
-  service: 'https://your-az-ai-service.azure.com'
+  service: 'https://your-service-name.cognitiveservices.azure.com/'
 
 github:
   v3_api_url: 'https://api.github.com/'

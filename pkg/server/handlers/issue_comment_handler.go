@@ -33,7 +33,7 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 	}
 	zerolog.Ctx(ctx).Debug().Msgf("%s received webhook event type=%s", h.name(), eventType)
 	// TODO : remove vulnerable use of payload as unfiltered input to logging function
-	zerolog.Ctx(ctx).Debug().Msgf("%s received webhook event:\n%s", h.name(), string(payload))
+	//zerolog.Ctx(ctx).Debug().Msgf("%s received webhook event:\n%s", h.name(), string(payload))
 
 	if !event.GetIssue().IsPullRequest() {
 		zerolog.Ctx(ctx).Debug().Msg("issue comment event is not for a pull request")
@@ -53,12 +53,13 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 		// create a new request to detect PII entities in the documents
 		req := az.NewPiiEntityRecognitionRequest(documents)
 
+		zerolog.Ctx(ctx).Debug().Msgf("sending PII entity detection request for %d documents", len(documents))
 		// send the request to the Azure AI Language service
 		if err := h.AI.DetectPiiEntities(ctx, req); err != nil {
 			zerolog.Ctx(ctx).Debug().Msg(err.Error())
 			return err
 		}
-		zerolog.Ctx(ctx).Debug().Msgf("no PII/PHI entities detected in %d documents", len(documents))
+		zerolog.Ctx(ctx).Debug().Msgf("AI detected no PII/PHI entities in %d documents", len(documents))
 	} else {
 		err := errors.New("no documents to process")
 		zerolog.Ctx(ctx).Debug().Msg(err.Error())
