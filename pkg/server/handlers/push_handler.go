@@ -8,10 +8,14 @@ import (
 	"github.com/palantir/go-githubapp/githubapp"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
 
 type PushHandler struct {
 	githubapp.ClientCreator
+
+	AI *az.EntityDetectionAI
 }
 
 func (h *PushHandler) Handles() []string {

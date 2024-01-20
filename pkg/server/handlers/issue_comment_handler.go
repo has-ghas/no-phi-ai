@@ -47,7 +47,7 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 		document := az.NewDocument(event.GetComment().GetURL(), eventComment, "en")
 		documents = append(documents, document)
 	}
-	// TODO
+	// TODO : pull data from other text fields as potential sources of PHI/PII
 
 	if len(documents) > 0 {
 		// create a new request to detect PII entities in the documents
@@ -61,7 +61,7 @@ func (h *IssueCommentHandler) Handle(ctx context.Context, eventType, deliveryID 
 		}
 		zerolog.Ctx(ctx).Debug().Msgf("AI detected no PII/PHI entities in %d documents", len(documents))
 	} else {
-		err := errors.New("no documents to process")
+		err := errors.New("no documents to process in issue comment handler")
 		zerolog.Ctx(ctx).Debug().Msg(err.Error())
 		return err
 	}

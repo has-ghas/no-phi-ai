@@ -29,8 +29,9 @@ type AzureAIConfig struct {
 
 // ServerConfig struct contains the configuration used to start the HTTP server.
 type ServerConfig struct {
-	Address string `yaml:"address"`
-	Port    int    `yaml:"port"`
+	Address   string  `yaml:"address"`
+	Port      int     `yaml:"port"`
+	RateLimit float64 `yaml:"rate_limit"`
 }
 
 // Config struct is the top-level configuration object for the app.
@@ -109,18 +110,35 @@ func (c *Config) setupLogger() {
 	return
 }
 
-// verify() method returns an error if a required value has not
-// been set in the Config, sets defaults for optional values, and/or
-// returns a nil error if all required values are set.
-func (c *Config) verify() (e error) {
-	// check the c.App config values
+// default() method sets default values for optional config fields.
+func (c *Config) defaultConfig() {
+	// set defaults for optional c.App config values
 	if c.App.Name == "" {
 		c.App.Name = DefaultAppName
 	}
 	if c.App.LogLevel == "" {
 		c.App.LogLevel = DefaultAppLogLevel
 	}
+	// set defaults for optional c.GitHub config values
+	if c.GitHub.V3APIURL == "" {
+		c.GitHub.V3APIURL = DefaultGitHubV3APIURL
+	}
+	// set defaults for optional c.Server config values
+	if c.Server.Address == "" {
+		c.Server.Address = DefaultServerAddress
+	}
+	if c.Server.Port == 0 {
+		c.Server.Port = DefaultServerPort
+	}
+	if c.Server.RateLimit == 0 {
+		c.Server.RateLimit = DefaultRateLimit
+	}
+}
 
+// verifyConfig() method returns an error if a required value has not
+// been set in the Config, sets defaults for optional values, and/or
+// returns a nil error if all required values are set.
+func (c *Config) verifyConfig() (e error) {
 	// check the c.AzureAI config values
 	if c.AzureAI.Service == "" {
 		e = errors.New("missing required config value: azure_ai.service")
@@ -146,17 +164,6 @@ func (c *Config) verify() (e error) {
 	if c.GitHub.App.WebhookSecret == "" {
 		e = errors.New("missing required config value: github.app.webhook_secret")
 		return
-	}
-	if c.GitHub.V3APIURL == "" {
-		c.GitHub.V3APIURL = DefaultGitHubV3APIURL
-	}
-
-	// check the c.Server config values
-	if c.Server.Address == "" {
-		c.Server.Address = DefaultServerAddress
-	}
-	if c.Server.Port == 0 {
-		c.Server.Port = DefaultServerPort
 	}
 
 	return
@@ -194,22 +201,29 @@ func ParseConfig() (*Config, error) {
 	// parse flags
 	flag.Parse()
 
+	// get config path from environment variable if not set via flag
 	if *configPath == "" {
 		if envConfigPath, found := os.LookupEnv(NOPHI_CONFIG_PATH); found {
 			*configPath = envConfigPath
 		}
 	}
 
+	// get config from file
 	c, err := readConfigFile(*configPath)
 	if err != nil {
 		return c, err
 	}
 
+	// override config values with environment variables
 	if err := c.envOverride(); err != nil {
 		return c, err
 	}
 
-	if err := c.verify(); err != nil {
+	// fill in default values for optional config fields
+	c.defaultConfig()
+
+	// verify required config values are set (i.e. not empty)
+	if err := c.verifyConfig(); err != nil {
 		return c, err
 	}
 
