@@ -24,8 +24,8 @@ jobs:
     - name: Upload artifact for deployment jobs
       uses: actions/upload-artifact@v2
       with:
-        name: go-guard-pii
-        path: build/go-guard-pii
+        name: no-phi-ai
+        path: build/no-phi-ai
           
   deploy:
     runs-on: ubuntu-latest
@@ -38,14 +38,14 @@ jobs:
       - name: Download artifact from build job
         uses: actions/download-artifact@v2
         with:
-          name: go-guard-pii
+          name: no-phi-ai
           path: .
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         id: deploy-to-webapp
         with:
-          app-name: 'go-guard-pii'
+          app-name: 'no-phi-ai'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
 
