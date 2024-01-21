@@ -63,21 +63,10 @@ jobs:
         # queries: security-extended,security-and-quality
 
     # Install and setup go as a build dependency
-    - name: Setup Go environment
-      uses: actions/setup-go@v5.0.0
+    - name: Setup golang
+      uses: actions/setup-go@v3
       with:
-        # The Go version to download (if necessary) and use. Supports semver spec and ranges. Be sure to enclose this option in single quotation marks.
-        go-version: '>=v1.21.4'
-        # Path to the go.mod or go.work file.
-        go-version-file: go.mod
-        # Set this option to true if you want the action to always check for the latest available version that satisfies the version spec
-        check-latest: true
-        # Used to specify whether caching is needed. Set to true, if you'd like to enable caching.
-        cache: true
-        # Used to specify the path to a dependency file - go.sum
-        cache-dependency-path: go.sum
-        # Target architecture for Go to use. Examples: x86, x64. Will use system architecture by default.
-        architecture: x86
+        go-version: '>=1.21.4'
           
     # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
     # If this step fails, then you should remove it and run the build manually (see below)
