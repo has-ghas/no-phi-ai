@@ -5,11 +5,13 @@ _build_mode=pie
 _build_packages="./${_app_pkg_dir}/..."
 _coverage_out_file=coverage.out
 
+_cmd_docker_build=DOCKER_BUILDKIT=1 docker build --ssh default
 _cmd_go_build=go build -buildmode="${_build_mode}" -o ../${_build_dir}/${_app_name}
 _cmd_go_cover=go tool cover -func=${_coverage_out_file}
 _cmd_go_fmt=go fmt ${_build_packages}
 _cmd_go_tidy=go mod tidy
 _cmd_go_test=go test -buildmode="${_build_mode}" -cover -coverprofile ${_coverage_out_file} -v -timeout=30s
+_cmd_go_vendor=go mod vendor
 _cmd_test=$$(go list ${_build_packages} | grep -v 'vendor')
 
 _msg="${_app_name} : make"
@@ -18,7 +20,7 @@ _msg_success="SUCCESS : ${_msg}"
 
 default: build
 
-.PHONY: build clean deploy format package remove test tidy
+.PHONY: build clean deploy format image package remove test tidy vendor
 
 build: build_prep build_only
 
@@ -37,6 +39,18 @@ format:
 		&& echo "${_msg_success} format" \
 		|| (echo "${_msg_error} format" && exit 40)
 
+image: image_mini
+
+image_full:
+	${_cmd_docker_build} --tag ${_app_name}-full --target full . \
+		&& echo "${_msg_success} image_full" \
+		|| (echo "${_msg_error} image_full" && exit 80)
+
+image_mini:
+	${_cmd_docker_build} --tag ${_app_name} --target mini . \
+		&& echo "${_msg_success} image_mini" \
+		|| (echo "${_msg_error} image_mini" && exit 85)
+
 test:
 	echo $(_cmd_test) | xargs ${_cmd_go_test} \
 		&& echo "${_msg_success} test" \
@@ -52,3 +66,7 @@ tidy:
 		&& echo "${_msg_success} tidy" \
 		|| (echo "${_msg_error} tidy" && exit 50)
 
+vendor:
+	${_cmd_go_vendor} \
+		&& echo "${_msg_success} vendor" \
+		|| (echo "${_msg_error} vendor" && exit 20)
