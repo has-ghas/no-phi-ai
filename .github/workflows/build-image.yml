@@ -1,4 +1,4 @@
-name: Build and deploy a container
+name: Build no-phi-ai docker container image
 
 ##env:
 ##  AZURE_WEBAPP_NAME: MY_WEBAPP_NAME   # set this to your application's name
