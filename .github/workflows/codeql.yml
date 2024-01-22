@@ -64,9 +64,9 @@ jobs:
 
     # Install and setup go as a build dependency
     - name: Setup golang
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
-        go-version: '>=1.21.4'
+        go-version: '1.21'
           
     # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
     # If this step fails, then you should remove it and run the build manually (see below)
