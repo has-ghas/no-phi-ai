@@ -4,18 +4,17 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/go-github/v57/github"
-	"github.com/palantir/go-githubapp/githubapp"
+	"github.com/google/go-github/v58/github"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+	"github.com/has-ghas/no-phi-ai/pkg/client/gh"
 )
 
 type PullRequestHandler struct {
-	githubapp.ClientCreator
-
-	AI *az.EntityDetectionAI
+	AI   *az.EntityDetectionAI
+	GHCM *gh.ClientManager
 }
 
 func (h *PullRequestHandler) Handles() []string {

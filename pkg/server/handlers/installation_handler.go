@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/google/go-github/v57/github"
-	"github.com/palantir/go-githubapp/githubapp"
+	"github.com/google/go-github/v58/github"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/client/gh"
 )
 
 type InstallationHandler struct {
-	githubapp.ClientCreator
+	GHCM *gh.ClientManager
 }
 
 func (h *InstallationHandler) Handles() []string {
@@ -27,7 +28,7 @@ func (h *InstallationHandler) Handle(ctx context.Context, eventType, deliveryID 
 	// TODO : remove vulnerable use of payload as unfiltered input to logging function
 	zerolog.Ctx(ctx).Debug().Msgf("%s received webhook event:\n%s", h.name(), string(payload))
 
-	// TODO
+	// TODO : do something with the GH app installation event
 
 	return nil
 }
