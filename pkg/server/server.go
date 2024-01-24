@@ -73,17 +73,13 @@ func NewManagerOrDie() *Manager {
 	v1.POST(cfg.RouteWebhook, handlers.LimitHandler(lmt), gin.WrapH(eventDispatcher))
 
 	// populate the Manager struct
-	m := &Manager{
+	return &Manager{
 		Config: config,
 		Server: &http.Server{
 			Addr:    fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port),
 			Handler: router,
 		},
 	}
-
-	m.logRoutes()
-
-	return m
 }
 
 // Serve() method auto-loads configuration from file and env vars,
@@ -91,7 +87,7 @@ func NewManagerOrDie() *Manager {
 // service APIs and GitHub APIs before registering HTTP handlers for
 // GitHub webhook events.
 func (m *Manager) Serve() {
-	log.Info().Msgf("starting HTTP server on %s", m.Server.Addr)
+	m.logRoutes()
 	// run the HTTP server
 	if err := m.Server.ListenAndServe(); err != nil {
 		log.Fatal().Err(err).Msg("runtime error in HTTP server")

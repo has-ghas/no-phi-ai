@@ -58,7 +58,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	requestBytes, err := json.Marshal(*requestData)
 	if err != nil {
 		e = err
-		log.Ctx(ctx).Error().Msgf("error marshalling data for entity recognition request: %s", e)
+		log.Ctx(ctx).Error().Msgf("error marshalling data for entity detection request: %s", e)
 		return
 	}
 	// TODO : remove debug logging of requestBytes
@@ -67,7 +67,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	req, err := http.NewRequest("POST", ai.endpoint, bytes.NewBuffer(requestBytes))
 	if err != nil {
 		e = err
-		log.Ctx(ctx).Error().Msgf("error creating entity recognition request: %s", e)
+		log.Ctx(ctx).Error().Msgf("error creating entity detection request: %s", e)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	resp, err := ai.client.Do(req)
 	if err != nil {
 		e = err
-		log.Ctx(ctx).Error().Msgf("error executing entity recognition request: %s", e)
+		log.Ctx(ctx).Error().Msgf("error executing entity detection request: %s", e)
 		return
 	}
 	defer resp.Body.Close()
@@ -85,7 +85,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		e = err
-		log.Ctx(ctx).Error().Msgf("error reading entity recognition response body: %s", e)
+		log.Ctx(ctx).Error().Msgf("error reading entity detection response body: %s", e)
 		return
 	}
 	log.Ctx(ctx).Debug().Msgf("entity detection AI confidence threshold: %f", ai.confidence)
@@ -95,7 +95,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	var textResponse PiiEntityRecognitionResults
 	e = json.Unmarshal(responseBody, &textResponse)
 	if e != nil {
-		log.Ctx(ctx).Error().Msgf("error unmarshalling entity recognition response body: %s", e)
+		log.Ctx(ctx).Error().Msgf("error unmarshalling entity detection response body: %s", e)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 			var resultBytes []byte
 			resultBytes, e = json.MarshalIndent(result, "", "  ")
 			if e != nil {
-				log.Ctx(ctx).Error().Msgf("error marshalling result within entity recognition response: %s", e)
+				log.Ctx(ctx).Error().Msgf("error marshalling result within entity detection response: %s", e)
 				return
 			}
 			// TODO : remove debug logging of resultBytes

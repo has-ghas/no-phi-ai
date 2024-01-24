@@ -13,6 +13,7 @@ import (
 // and adds additional methods for implementing the business logic of the app.
 type ClientManager struct {
 	githubapp.ClientCreator
+	Config *cfg.Config
 }
 
 func NewClientManager(config *cfg.Config) (*ClientManager, error) {
@@ -35,5 +36,5 @@ func NewClientManager(config *cfg.Config) (*ClientManager, error) {
 		return nil, err
 	}
 
-	return &ClientManager{cc}, nil
+	return &ClientManager{cc, config}, nil
 }

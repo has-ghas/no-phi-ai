@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ApplyLabelForIssueComment() method applies the specified label to the GitHub issue.
 func (cms *ClientManager) ApplyLabelForIssueComment(ctx context.Context, event github.IssueCommentEvent, label string) error {
 
 	if label == "" {
@@ -31,8 +32,8 @@ func (cms *ClientManager) ApplyLabelForIssueComment(ctx context.Context, event g
 
 	ctx, logger := githubapp.PreparePRContext(ctx, installationID, repo, issueNum)
 
-	if err := applyLabelsToIssue(ctx, client, repoOwner, repoName, issueNum, labelsAdd, labelsRm); err != nil {
-		logger.Error().Err(err).Msg("failed to comment on pull request")
+	if err := updateIssueLabels(ctx, client, repoOwner, repoName, issueNum, labelsAdd, labelsRm, cms.Config); err != nil {
+		logger.Error().Err(err).Msgf("failed to update labels for issue_#=%d", issueNum)
 	}
 	logger.Info().Msgf("updated issue_#=%d with label=%s", issueNum, label)
 
