@@ -10,14 +10,12 @@ import (
 	"github.com/gin-contrib/requestid"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/gregjones/httpcache"
 	"github.com/palantir/go-githubapp/githubapp"
-	"github.com/rcrowley/go-metrics"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+	"github.com/has-ghas/no-phi-ai/pkg/client/gh"
 	"github.com/has-ghas/no-phi-ai/pkg/server/handlers"
 )
 
@@ -72,7 +70,7 @@ func NewManagerOrDie() *Manager {
 
 	// setup routes for the HTTP server
 	v1 := router.Group(cfg.RouteGroupGHv1)
-	v1.GET(cfg.RouteWebhook, handlers.LimitHandler(lmt), gin.WrapH(eventDispatcher))
+	v1.POST(cfg.RouteWebhook, handlers.LimitHandler(lmt), gin.WrapH(eventDispatcher))
 
 	// populate the Manager struct
 	return &Manager{
@@ -89,30 +87,23 @@ func NewManagerOrDie() *Manager {
 // service APIs and GitHub APIs before registering HTTP handlers for
 // GitHub webhook events.
 func (m *Manager) Serve() {
-	log.Info().Msgf("starting HTTP server on %s", m.Server.Addr)
+	m.logRoutes()
 	// run the HTTP server
 	if err := m.Server.ListenAndServe(); err != nil {
 		log.Fatal().Err(err).Msg("runtime error in HTTP server")
 	}
 }
 
+// logRoutes() function logs the HTTP routes registered with the gin Router.
+func (m *Manager) logRoutes() {
+	for _, route := range m.Server.Handler.(*gin.Engine).Routes() {
+		log.Info().Msgf("serving endpoint -> %s %s%s", route.Method, m.Server.Addr, route.Path)
+	}
+}
+
 func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
 
-	// TODO
-	metricsRegistry := metrics.DefaultRegistry
-
-	// create a common githubapp.ClientCreator, which can be used to get an
-	// installation client for interacting with GitHub APIs
-	cc, err := githubapp.NewDefaultCachingClientCreator(
-		config.GitHub,
-		githubapp.WithClientUserAgent(cfg.AppUserAgent),
-		githubapp.WithClientTimeout(cfg.DefaultClientTimeout),
-		githubapp.WithClientCaching(false, func() httpcache.Cache { return httpcache.NewMemoryCache() }),
-		githubapp.WithClientMiddleware(
-			githubapp.ClientMetrics(metricsRegistry),
-			githubapp.ClientLogging(zerolog.GlobalLevel()),
-		),
-	)
+	ghcm, err := gh.NewClientManager(config)
 	if err != nil {
 		return nil, err
 	}
@@ -126,20 +117,20 @@ func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
 
 	// define the event handlers
 	installationHandler := &handlers.InstallationHandler{
-		ClientCreator: cc,
+		GHCM: ghcm,
 	}
 	issueCommentHandler := &handlers.IssueCommentHandler{
-		AI:            ai,
-		ClientCreator: cc,
-		Preamble:      config.App.PullRequestPreamble,
+		AI:       ai,
+		GHCM:     ghcm,
+		Preamble: config.App.PullRequestPreamble,
 	}
 	pullRequestHandler := &handlers.PullRequestHandler{
-		AI:            ai,
-		ClientCreator: cc,
+		AI:   ai,
+		GHCM: ghcm,
 	}
 	pushHandler := &handlers.PushHandler{
-		AI:            ai,
-		ClientCreator: cc,
+		AI:   ai,
+		GHCM: ghcm,
 	}
 
 	// register the event handlers with a new/default event dispatcher

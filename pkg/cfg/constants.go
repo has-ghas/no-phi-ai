@@ -27,4 +27,4 @@ const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
 const NOPHI_SERVER_PORT string = "NOPHI_SERVER_PORT"
 
 const RouteGroupGHv1 string = "/api/v1/github"
-const RouteWebhook string = RouteGroupGHv1 + "/hook"
+const RouteWebhook string = "/hook"
