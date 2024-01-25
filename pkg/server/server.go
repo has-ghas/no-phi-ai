@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/palantir/go-githubapp/githubapp"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
@@ -22,6 +23,7 @@ import (
 // Manager struct holds the configuration and state for the HTTP server.
 type Manager struct {
 	Config *cfg.Config
+	Logger *zerolog.Logger
 	Server *http.Server
 }
 
@@ -34,12 +36,13 @@ func NewManagerOrDie() *Manager {
 	var config *cfg.Config
 	var err error
 	var eventDispatcher http.Handler
+	var logger *zerolog.Logger
 
 	// parse config from file and env vars, where env vars take precedence.
 	//
 	// use the config as the basis for setting up the HTTP server and
 	// registering HTTP handlers for GitHub webhook events.
-	config, err = cfg.ParseConfig()
+	config, logger, err = cfg.ParseConfig()
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to parse config for new Manager")
 	}
@@ -60,12 +63,15 @@ func NewManagerOrDie() *Manager {
 			return uuid.NewString()
 		}),
 	))
-	router.Use(gin.Logger())
+	// setup structured logging for the HTTP server
+	router.Use(handlers.StructuredLogger(logger))
+	// allow the HTTP server to recover from panics
+	router.Use(gin.Recovery())
 
 	// setup an http.Handler as the event dispatcher for GitHub webhook events
 	eventDispatcher, err = setupEventDispatcher(config)
 	if err != nil {
-		log.Fatal().Err(err).Msg("failed to setup event handler for new Manager")
+		logger.Fatal().Err(err).Msg("failed to setup event handler for new Manager")
 	}
 
 	// setup routes for the HTTP server
@@ -75,6 +81,7 @@ func NewManagerOrDie() *Manager {
 	// populate the Manager struct
 	return &Manager{
 		Config: config,
+		Logger: logger,
 		Server: &http.Server{
 			Addr:    fmt.Sprintf("%s:%d", config.Server.Address, config.Server.Port),
 			Handler: router,
@@ -90,14 +97,14 @@ func (m *Manager) Serve() {
 	m.logRoutes()
 	// run the HTTP server
 	if err := m.Server.ListenAndServe(); err != nil {
-		log.Fatal().Err(err).Msg("runtime error in HTTP server")
+		m.Logger.Fatal().Err(err).Msg("runtime error in HTTP server")
 	}
 }
 
 // logRoutes() function logs the HTTP routes registered with the gin Router.
 func (m *Manager) logRoutes() {
 	for _, route := range m.Server.Handler.(*gin.Engine).Routes() {
-		log.Info().Msgf("serving endpoint -> %s %s%s", route.Method, m.Server.Addr, route.Path)
+		m.Logger.Info().Msgf("serving endpoint -> %s %s%s", route.Method, m.Server.Addr, route.Path)
 	}
 }
 
@@ -120,9 +127,8 @@ func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
 		GHCM: ghcm,
 	}
 	issueCommentHandler := &handlers.IssueCommentHandler{
-		AI:       ai,
-		GHCM:     ghcm,
-		Preamble: config.App.PullRequestPreamble,
+		AI:   ai,
+		GHCM: ghcm,
 	}
 	pullRequestHandler := &handlers.PullRequestHandler{
 		AI:   ai,

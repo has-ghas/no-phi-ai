@@ -1,0 +1,60 @@
+package cfg
+
+import (
+	"os"
+	"strconv"
+
+	"github.com/pkg/errors"
+)
+
+const NOPHI_APP_LOG_LEVEL string = "NOPHI_APP_LOG_LEVEL"
+const NOPHI_APP_NAME string = "NOPHI_APP_NAME"
+const NOPHI_CONFIG_PATH string = "NOPHI_CONFIG_PATH"
+const NOPHI_GH_INTEGRATION_ID string = "NOPHI_GH_INTEGRATION_ID"
+const NOPHI_GH_PRIVATE_KEY string = "NOPHI_GH_PRIVATE_KEY"
+const NOPHI_GH_V3APIURL string = "NOPHI_GH_V3APIURL"
+const NOPHI_GH_V4APIURL string = "NOPHI_GH_V4APIURL"
+const NOPHI_GH_WEBHOOK_SECRET = "NOPHI_GH_WEBHOOK_SECRET"
+const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
+const NOPHI_SERVER_PORT string = "NOPHI_SERVER_PORT"
+
+// envOverride() method overrides *Config values with values from environment variables.
+func (c *Config) envOverride() error {
+	if appName := os.Getenv(NOPHI_APP_NAME); appName != "" {
+		c.App.Name = appName
+	}
+	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
+		c.App.Log.Level = logLevel
+	}
+	if integrationID := os.Getenv(NOPHI_GH_INTEGRATION_ID); integrationID != "" {
+		integrationIDInt, err := strconv.ParseInt(integrationID, 10, 64)
+		if err != nil {
+			return errors.Wrap(err, "failed parsing NOPHI_GH_INTEGRATION_ID env var")
+		}
+		c.GitHub.App.IntegrationID = integrationIDInt
+	}
+	if privateKey := os.Getenv(NOPHI_GH_PRIVATE_KEY); privateKey != "" {
+		c.GitHub.App.PrivateKey = privateKey
+	}
+	if webhookSecret := os.Getenv(NOPHI_GH_WEBHOOK_SECRET); webhookSecret != "" {
+		c.GitHub.App.WebhookSecret = webhookSecret
+	}
+	if V3APIURL := os.Getenv(NOPHI_GH_V3APIURL); V3APIURL != "" {
+		c.GitHub.V3APIURL = V3APIURL
+	}
+	if V4APIURL := os.Getenv(NOPHI_GH_V4APIURL); V4APIURL != "" {
+		c.GitHub.V4APIURL = V4APIURL
+	}
+	if serverAddress := os.Getenv(NOPHI_SERVER_ADDRESS); serverAddress != "" {
+		c.Server.Address = serverAddress
+	}
+	if serverPort := os.Getenv(NOPHI_SERVER_PORT); serverPort != "" {
+		serverPortInt, err := strconv.Atoi(serverPort)
+		if err != nil {
+			return errors.Wrap(err, "failed parsing SERVER_PORT env var")
+		}
+		c.Server.Port = serverPortInt
+	}
+
+	return nil
+}
