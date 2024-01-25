@@ -1,9 +1,12 @@
 ---
 
 app:
-  log_level: 'info'
+  log:
+    console_enable: true
+    console_pretty: true
+    file: ''
+    level: 'debug'
   name: 'no-phi-ai-test'
-  pull_request_preamble: 'Tagged by no-phi-ai-test :'
 
 azure_ai:
   auth_key: 'YOUR-KEY-HERE'

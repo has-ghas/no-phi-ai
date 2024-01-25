@@ -1,6 +1,8 @@
 
 # test files
 *.json
+*.log
+*.sh
 *.test
 *.txt
 *.yaml

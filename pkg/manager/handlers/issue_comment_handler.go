@@ -16,9 +16,8 @@ import (
 )
 
 type IssueCommentHandler struct {
-	AI       *az.EntityDetectionAI
-	GHCM     *gh.ClientManager
-	Preamble string
+	AI   *az.EntityDetectionAI
+	GHCM *gh.ClientManager
 }
 
 func (h *IssueCommentHandler) Handles() []string {
