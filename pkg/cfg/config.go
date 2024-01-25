@@ -12,8 +12,15 @@ import (
 
 // AppConfig struct contains the configuration items used by the running app.
 type AppConfig struct {
-	Log  AppLogConfig `yaml:"log"`
-	Name string       `yaml:"name"`
+	Log AppLogConfig `yaml:"log"`
+	// Mode can be:
+	//   - "gh_app" to run a GitHub App that listens for webhook events
+	//   - "cli" to load config and run once, like a CLI tool
+	// Mode default is "gh_app"
+	Mode string `yaml:"mode"`
+	// Name is the name of the app;
+	// Name default is "no-phi-ai"
+	Name string `yaml:"name"`
 }
 
 // AzureAIConfig struct contains the configuration items used by the Azure AI API.
