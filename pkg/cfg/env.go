@@ -8,7 +8,11 @@ import (
 )
 
 const NOPHI_APP_LOG_LEVEL string = "NOPHI_APP_LOG_LEVEL"
+const NOPHI_APP_MODE string = "NOPHI_APP_MODE"
 const NOPHI_APP_NAME string = "NOPHI_APP_NAME"
+const NOPHI_AZURE_AI_SHOW_STATS string = "NOPHI_AZURE_AI_SHOW_STATS"
+const NOPHI_COMMAND_RUN = "NOPHI_COMMAND_RUN"
+const NOPHI_COMMAND_WORKDIR = "NOPHI_COMMAND_WORKDIR"
 const NOPHI_CONFIG_PATH string = "NOPHI_CONFIG_PATH"
 const NOPHI_GH_INTEGRATION_ID string = "NOPHI_GH_INTEGRATION_ID"
 const NOPHI_GH_PRIVATE_KEY string = "NOPHI_GH_PRIVATE_KEY"
@@ -18,10 +22,46 @@ const NOPHI_GH_WEBHOOK_SECRET = "NOPHI_GH_WEBHOOK_SECRET"
 const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
 const NOPHI_SERVER_PORT string = "NOPHI_SERVER_PORT"
 
+// GetAppEnvVars() method returns a list of environment variables used by the app.
+func GetAppEnvVars() []string {
+	return []string{
+		NOPHI_APP_LOG_LEVEL,
+		NOPHI_APP_MODE,
+		NOPHI_APP_NAME,
+		NOPHI_AZURE_AI_SHOW_STATS,
+		NOPHI_COMMAND_RUN,
+		NOPHI_COMMAND_WORKDIR,
+		NOPHI_CONFIG_PATH,
+		NOPHI_GH_INTEGRATION_ID,
+		NOPHI_GH_PRIVATE_KEY,
+		NOPHI_GH_V3APIURL,
+		NOPHI_GH_V4APIURL,
+		NOPHI_GH_WEBHOOK_SECRET,
+		NOPHI_SERVER_ADDRESS,
+		NOPHI_SERVER_PORT,
+	}
+}
+
 // envOverride() method overrides *Config values with values from environment variables.
 func (c *Config) envOverride() error {
-	if appName := os.Getenv(NOPHI_APP_NAME); appName != "" {
-		c.App.Name = appName
+	if mode := os.Getenv(NOPHI_APP_MODE); mode != "" {
+		c.App.Mode = mode
+	}
+	if name := os.Getenv(NOPHI_APP_NAME); name != "" {
+		c.App.Name = name
+	}
+	if azShowStats := os.Getenv(NOPHI_AZURE_AI_SHOW_STATS); azShowStats != "" {
+		azShowStatsBool, err := strconv.ParseBool(azShowStats)
+		if err != nil {
+			return errors.Wrap(err, "failed parsing NOPHI_AZURE_AI_SHOW_STATS env var")
+		}
+		c.AzureAI.ShowStats = azShowStatsBool
+	}
+	if commandRun := os.Getenv(NOPHI_COMMAND_RUN); commandRun != "" {
+		c.Command.Run = commandRun
+	}
+	if commandWorkDir := os.Getenv(NOPHI_COMMAND_WORKDIR); commandWorkDir != "" {
+		c.Command.WorkDir = commandWorkDir
 	}
 	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
 		c.App.Log.Level = logLevel

@@ -18,7 +18,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/manager/handlers"
 )
 
-// initServer() method initialized the HTTP server and registers handlers.
+// initServer() method initializes the HTTP server and registers handlers.
 func (m *Manager) initServer() {
 	// setup the rate limiter for the HTTP server
 	lmt := tollbooth.NewLimiter(m.Config.Server.RateLimit, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
@@ -69,12 +69,10 @@ func (m *Manager) logRoutes() {
 // then uses this configuration to setup clients for Azure AI Language
 // service APIs and GitHub APIs before registering HTTP handlers for
 // GitHub webhook events.
-func (m *Manager) runServer() {
+func (m *Manager) runServer() error {
 	m.logRoutes()
 	// run the HTTP server
-	if err := m.Server.ListenAndServe(); err != nil {
-		m.Logger.Fatal().Err(err).Msg("runtime error in HTTP server")
-	}
+	return m.Server.ListenAndServe()
 }
 
 func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
@@ -110,7 +108,7 @@ func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
 
 	// register the event handlers with a new/default event dispatcher
 	eventDispatcher := githubapp.NewDefaultEventDispatcher(
-		config.GitHub,
+		*config.GetGitHubAppConfig(),
 		installationHandler,
 		issueCommentHandler,
 		pullRequestHandler,

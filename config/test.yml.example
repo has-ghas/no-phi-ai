@@ -6,6 +6,7 @@ app:
     console_pretty: true
     file: ''
     level: 'debug'
+  mode: 'cli'
   name: 'no-phi-ai-test'
 
 azure_ai:
@@ -14,13 +15,19 @@ azure_ai:
   service: 'https://your-service-name.cognitiveservices.azure.com/'
 
 github:
-  v3_api_url: 'https://api.github.com/'
   app:
     # integration_id cannot be 0 ; ERROR expected here...
     integration_id: 0
     webhook_secret: 'your-app-webhook-secret-here'
     private_key: |
       your-app-private-key-content-here
+  auth:
+    ssh_key_path: ''
+    token: 'test123'
+  scan:
+    organization: ''
+    repositories: []
+  v3_api_url: 'https://api.github.com/'
 
 server:
   address: '127.0.0.1'
