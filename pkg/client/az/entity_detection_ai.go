@@ -35,10 +35,18 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 		return nil, err
 	}
 
+	// add query param(s) to the endpoint for the Azure AI Languge service
+	//  e.g. to "show stats" on document analysis
+	endpoint := fmt.Sprintf(
+		"%s/%s",
+		c.AzureAI.Service,
+		GetDefaultDetectionApi(c.AzureAI.ShowStats),
+	)
+
 	return &EntityDetectionAI{
 		client:     &http.Client{},
 		confidence: c.AzureAI.ConfidenceThreshold,
-		endpoint:   fmt.Sprintf("%s/%s", c.AzureAI.Service, DefaultDetectionApi),
+		endpoint:   endpoint,
 		key:        c.AzureAI.AuthKey,
 	}, nil
 }

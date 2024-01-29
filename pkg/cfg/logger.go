@@ -26,12 +26,15 @@ func (c *Config) setupLogger() *zerolog.Logger {
 	default:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
-	logger := zerolog.New(os.Stdout).With().Timestamp().Logger()
 
 	var level_writer io.Writer = zerolog.LevelWriterAdapter{Writer: os.Stdout}
 	if c.App.Log.ConsolePretty {
 		level_writer = zerolog.ConsoleWriter{Out: os.Stdout}
 	}
+
+	// create the zerolog.Logger instance that will be re-used throughout the app
+	logger := zerolog.New(level_writer).With().Caller().Timestamp().Logger()
+
 	if c.App.Log.File != "" {
 		log_file, err := os.OpenFile(c.App.Log.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
@@ -47,7 +50,7 @@ func (c *Config) setupLogger() *zerolog.Logger {
 	}
 
 	zerolog.DefaultContextLogger = &logger
-	logger.Info().Msgf("%s app logger setup complete : log_level=%s", c.App.Name, zerolog.GlobalLevel())
+	logger.Trace().Msgf("%s app logger setup complete : log_level=%s", c.App.Name, zerolog.GlobalLevel())
 
 	return &logger
 }

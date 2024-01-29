@@ -17,14 +17,14 @@ type ClientManager struct {
 }
 
 func NewClientManager(config *cfg.Config) (*ClientManager, error) {
-	// TODO
+	// TODO : do something more with the metrics registry
 	metricsRegistry := metrics.DefaultRegistry
 
 	// create a common githubapp.ClientCreator, which can be used to get an
 	// installation client for interacting with GitHub APIs
 	cc, err := githubapp.NewDefaultCachingClientCreator(
-		config.GitHub,
-		githubapp.WithClientUserAgent(cfg.AppUserAgent),
+		*config.GetGitHubAppConfig(),
+		githubapp.WithClientUserAgent(config.App.UserAgent),
 		githubapp.WithClientTimeout(cfg.DefaultClientTimeout),
 		githubapp.WithClientCaching(false, func() httpcache.Cache { return httpcache.NewMemoryCache() }),
 		githubapp.WithClientMiddleware(
