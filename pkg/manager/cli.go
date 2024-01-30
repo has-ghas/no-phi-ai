@@ -2,17 +2,18 @@ package manager
 
 import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner"
 )
 
 func (m *Manager) initCLI() {
-	// initialize the GitManager for use in the execution of CLI commands
-	m.Git = nogit.NewGitManager(m.Config, m.Logger)
+	// initialize the Scanner for use by the Manager in the running of CLI commands
+	// that involve scanning git repos.
+	m.scanner = scanner.NewScanner(&m.config.Git, m.ctx, m.logger)
 }
 
-// runCLI() method is used to run the command specified in m.Config.Command.Run var.
+// runCLI() method is used to run the command specified in m.config.Command.Run var.
 func (m *Manager) runCLI() (e error) {
-	switch m.Config.Command.Run {
+	switch m.config.Command.Run {
 	case cfg.CommandRunHelp:
 		e = m.commandHelp()
 		return
@@ -29,7 +30,7 @@ func (m *Manager) runCLI() (e error) {
 		e = m.commandVersion()
 		return
 	default:
-		m.Logger.Fatal().Msgf("invalid command : %s", m.Config.Command.Run)
+		m.logger.Fatal().Msgf("invalid command : %s", m.config.Command.Run)
 		return
 	}
 }

@@ -8,7 +8,7 @@ import (
 )
 
 func (m *Manager) commandHelp() (e error) {
-	fmt.Printf("CLI Help Information for %s app:\n", m.Config.App.Name)
+	fmt.Printf("CLI Help Information for %s app:\n", m.config.App.Name)
 	fmt.Println("\tAvailable Commands:")
 	printNameAndDescription(
 		cfg.CommandRunHelp,
@@ -39,14 +39,14 @@ func (m *Manager) commandHelp() (e error) {
 
 // commandListOrgRepos() method is used to run the "list-org-repos" command.
 func (m *Manager) commandListOrgRepos() (e error) {
-	m.Logger.Warn().Msgf("%s commmand is TODO\n", cfg.CommandRunListOrgRepos)
+	m.logger.Warn().Msgf("%s commmand is TODO\n", cfg.CommandRunListOrgRepos)
 	return
 }
 
 // commandScanOrg() method is used to run the "scan-org" command, which
 // is applies the "scan-repos" command to all repositories in the organization.
 func (m *Manager) commandScanOrg() (e error) {
-	m.Logger.Warn().Msgf("%s commmand is TODO\n", cfg.CommandRunScanOrg)
+	m.logger.Warn().Msgf("%s commmand is TODO\n", cfg.CommandRunScanOrg)
 	return
 }
 
@@ -54,21 +54,17 @@ func (m *Manager) commandScanOrg() (e error) {
 // is used to scan the contents of a single git repository for PHI/PII.
 func (m *Manager) commandScanRepos() (e error) {
 
-	if len(m.Config.GitHub.Scan.Repositories) == 0 {
+	if len(m.config.Git.Scan.Repositories) == 0 {
 		e = errors.New("no repositories specified for scan")
 		return
 	}
 
-	for _, repoURL := range m.Config.GitHub.Scan.Repositories {
-		// TODO : do something with the cloned repo
-		_, e = m.Git.CloneRepo(repoURL)
-	}
-
+	e = m.scanner.ScanReposForPHI()
 	return
 }
 
 func (m *Manager) commandVersion() (e error) {
-	fmt.Printf("%s %s\n", m.Config.App.Name, cfg.AppVersion)
+	fmt.Printf("%s %s\n", m.config.App.Name, cfg.AppVersion)
 	return
 }
 

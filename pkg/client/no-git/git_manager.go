@@ -1,10 +1,11 @@
 package nogit
 
 import (
+	"context"
 	"errors"
 	"os"
 
-	"github.com/go-git/go-git/v5"
+	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
@@ -16,18 +17,22 @@ import (
 // methods for cloning a repository and scanning for PHI/PII by
 // recursively walking the repository's file tree.
 type GitManager struct {
-	Config *cfg.Config
-	Logger *zerolog.Logger
+	config *cfg.GitConfig
+	ctx    context.Context
+	logger *zerolog.Logger
 }
 
 // NewGitManager returns a new GitManager instance.
-func NewGitManager(config *cfg.Config, logger *zerolog.Logger) *GitManager {
+func NewGitManager(config *cfg.GitConfig, ctx context.Context, logger *zerolog.Logger) *GitManager {
 	return &GitManager{
-		Config: config,
-		Logger: logger,
+		config: config,
+		ctx:    ctx,
+		logger: logger,
 	}
 }
 
+// CloneRepo() method clones the repository specified by the repo_url to
+// a subdirectory of the configured gm.config.WorkDir.
 func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 
 	var key_err error
@@ -42,23 +47,23 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 		return nil, dir_err
 	}
 
-	gm.Logger.Debug().Msgf("cloning git repo %s to %s", repo_url, clone_dir)
-	repo, err := git.PlainClone(clone_dir, false, &git.CloneOptions{
-		Progress: os.Stdout,
+	gm.logger.Debug().Ctx(gm.ctx).Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
+	repo, err := git.PlainCloneContext(gm.ctx, clone_dir, false, &git.CloneOptions{
+		Progress: os.Stdout, // TODO : remove/replace this
 		URL:      repo_url,
 		Auth:     auth_method,
 	})
 
 	if err != nil {
 		if err == git.ErrRepositoryAlreadyExists {
-			gm.Logger.Info().Msg("repo was already cloned")
+			gm.logger.Info().Ctx(gm.ctx).Msgf("git repo already cloned : opening from %s", clone_dir)
 			return git.PlainOpen(clone_dir)
 		} else {
-			gm.Logger.Error().Err(err).Msg("clone git repo error")
+			gm.logger.Error().Ctx(gm.ctx).Err(err).Msgf("failed to clone git repo from %s", repo_url)
 			return nil, err
 		}
 	}
-	gm.Logger.Info().Msgf("cloned git repo to %s", clone_dir)
+	gm.logger.Info().Ctx(gm.ctx).Msgf("cloned git repo to %s", clone_dir)
 
 	return repo, nil
 }
@@ -67,10 +72,10 @@ func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, erro
 	// use the provided config values to determine which auth method to use
 	//
 	// TODO : also use the repo_url to determine which auth method to use
-	if gm.Config.GitHub.Auth.SSHKeyPath != "" {
+	if gm.config.Auth.SSHKeyPath != "" {
 		// use SSH key auth if configured
 		return gm.getAuthMethodPublicKey()
-	} else if gm.Config.GitHub.Auth.Token != "" {
+	} else if gm.config.Auth.Token != "" {
 		// TODO : implement token auth
 		return nil, errors.New("token auth not implemented")
 	} else {
@@ -80,7 +85,7 @@ func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, erro
 
 func (gm *GitManager) getAuthMethodPublicKey() (*ssh.PublicKeys, error) {
 	var publicKey *ssh.PublicKeys
-	sshPath := gm.Config.GitHub.Auth.SSHKeyPath
+	sshPath := gm.config.Auth.SSHKeyPath
 	sshKey, _ := os.ReadFile(sshPath)
 	publicKey, err := ssh.NewPublicKeys("git", []byte(sshKey), "")
 	if err != nil {
@@ -92,10 +97,10 @@ func (gm *GitManager) getAuthMethodPublicKey() (*ssh.PublicKeys, error) {
 // getRepoCloneDir() method is used to get the directory where a git repository
 // will be cloned by this GitManager instance.
 func (gm *GitManager) getRepoCloneDir(repoURL string) (string, error) {
-	repoName, err := parseRepoNameFromURL(repoURL)
+	repoName, err := ParseRepoNameFromURL(repoURL)
 	if err != nil {
 		return "", err
 	}
-	cloneDir := gm.Config.Command.WorkDir + "/" + repoName
+	cloneDir := gm.config.WorkDir + "/" + repoName
 	return cloneDir, nil
 }

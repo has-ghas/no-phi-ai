@@ -1,21 +1,23 @@
 package manager
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner"
 )
 
 // Manager struct holds the configuration and state for app.
 type Manager struct {
-	Config *cfg.Config
-	Git    *nogit.GitManager
-	Logger *zerolog.Logger
-	Server *http.Server
+	config  *cfg.Config
+	ctx     context.Context
+	logger  *zerolog.Logger
+	scanner *scanner.Scanner
+	server  *http.Server
 }
 
 // New() function returns a new Manager instance for the app.
@@ -44,19 +46,20 @@ func New() *Manager {
 
 	// populate the Manager struct
 	return &Manager{
-		Config: config,
-		Logger: logger,
+		config: config,
+		ctx:    context.Background(),
+		logger: logger,
 	}
 }
 
 // GetAppMode() method returns the configured app mode for the Manager.
 func (m *Manager) GetAppMode() string {
-	return m.Config.App.Mode
+	return m.config.App.Mode
 }
 
 // Init() method runs initialization steps that are specific to the configured mode.
 func (m *Manager) Init() {
-	m.Logger.Trace().Msg("initializing Manager")
+	m.logger.Trace().Msg("initializing Manager")
 	switch m.GetAppMode() {
 	case cfg.AppModeCLI:
 		m.initCLI()
@@ -65,25 +68,25 @@ func (m *Manager) Init() {
 		m.initServer()
 		return
 	default:
-		m.Logger.Fatal().Msgf("Manager refusing to Init() invalid app mode: %s", m.GetAppMode())
+		m.logger.Fatal().Msgf("Manager refusing to Init() invalid app mode: %s", m.GetAppMode())
 	}
 }
 
 // Run() method runs the Manager in the configured mode.
 func (m *Manager) Run() {
-	m.Logger.Trace().Msg("running Manager")
+	m.logger.Trace().Msg("running Manager")
 	switch m.GetAppMode() {
 	case cfg.AppModeCLI:
 		if err := m.runCLI(); err != nil {
-			m.Logger.Fatal().Err(err).Msgf("error running in '%s' mode", m.GetAppMode())
+			m.logger.Fatal().Err(err).Msgf("error running in '%s' mode", m.GetAppMode())
 		}
 		return
 	case cfg.AppModeServer:
 		if err := m.runServer(); err != nil {
-			m.Logger.Fatal().Err(err).Msgf("error running in '%s' mode", m.GetAppMode())
+			m.logger.Fatal().Err(err).Msgf("error running in '%s' mode", m.GetAppMode())
 		}
 		return
 	default:
-		m.Logger.Fatal().Msgf("Manager refusing to Run() invalid app mode: %s", m.GetAppMode())
+		m.logger.Fatal().Msgf("Manager refusing to Run() invalid app mode: %s", m.GetAppMode())
 	}
 }

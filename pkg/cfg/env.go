@@ -12,13 +12,13 @@ const NOPHI_APP_MODE string = "NOPHI_APP_MODE"
 const NOPHI_APP_NAME string = "NOPHI_APP_NAME"
 const NOPHI_AZURE_AI_SHOW_STATS string = "NOPHI_AZURE_AI_SHOW_STATS"
 const NOPHI_COMMAND_RUN = "NOPHI_COMMAND_RUN"
-const NOPHI_COMMAND_WORKDIR = "NOPHI_COMMAND_WORKDIR"
 const NOPHI_CONFIG_PATH string = "NOPHI_CONFIG_PATH"
 const NOPHI_GH_INTEGRATION_ID string = "NOPHI_GH_INTEGRATION_ID"
 const NOPHI_GH_PRIVATE_KEY string = "NOPHI_GH_PRIVATE_KEY"
 const NOPHI_GH_V3APIURL string = "NOPHI_GH_V3APIURL"
 const NOPHI_GH_V4APIURL string = "NOPHI_GH_V4APIURL"
 const NOPHI_GH_WEBHOOK_SECRET = "NOPHI_GH_WEBHOOK_SECRET"
+const NOPHI_GIT_WORKDIR = "NOPHI_GIT_WORKDIR"
 const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
 const NOPHI_SERVER_PORT string = "NOPHI_SERVER_PORT"
 
@@ -30,13 +30,13 @@ func GetAppEnvVars() []string {
 		NOPHI_APP_NAME,
 		NOPHI_AZURE_AI_SHOW_STATS,
 		NOPHI_COMMAND_RUN,
-		NOPHI_COMMAND_WORKDIR,
 		NOPHI_CONFIG_PATH,
 		NOPHI_GH_INTEGRATION_ID,
 		NOPHI_GH_PRIVATE_KEY,
 		NOPHI_GH_V3APIURL,
 		NOPHI_GH_V4APIURL,
 		NOPHI_GH_WEBHOOK_SECRET,
+		NOPHI_GIT_WORKDIR,
 		NOPHI_SERVER_ADDRESS,
 		NOPHI_SERVER_PORT,
 	}
@@ -57,14 +57,14 @@ func (c *Config) envOverride() error {
 		}
 		c.AzureAI.ShowStats = azShowStatsBool
 	}
+	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
+		c.App.Log.Level = logLevel
+	}
 	if commandRun := os.Getenv(NOPHI_COMMAND_RUN); commandRun != "" {
 		c.Command.Run = commandRun
 	}
-	if commandWorkDir := os.Getenv(NOPHI_COMMAND_WORKDIR); commandWorkDir != "" {
-		c.Command.WorkDir = commandWorkDir
-	}
-	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
-		c.App.Log.Level = logLevel
+	if gitWorkDir := os.Getenv(NOPHI_GIT_WORKDIR); gitWorkDir != "" {
+		c.Git.WorkDir = gitWorkDir
 	}
 	if integrationID := os.Getenv(NOPHI_GH_INTEGRATION_ID); integrationID != "" {
 		integrationIDInt, err := strconv.ParseInt(integrationID, 10, 64)
