@@ -13,7 +13,6 @@ import (
 // and adds additional methods for implementing the business logic of the app.
 type ClientManager struct {
 	githubapp.ClientCreator
-	Config *cfg.Config
 }
 
 func NewClientManager(config *cfg.Config) (*ClientManager, error) {
@@ -23,7 +22,7 @@ func NewClientManager(config *cfg.Config) (*ClientManager, error) {
 	// create a common githubapp.ClientCreator, which can be used to get an
 	// installation client for interacting with GitHub APIs
 	cc, err := githubapp.NewDefaultCachingClientCreator(
-		*config.GetGitHubAppConfig(),
+		*config.GitHub.GetGitHubAppConfig(),
 		githubapp.WithClientUserAgent(config.App.UserAgent),
 		githubapp.WithClientTimeout(cfg.DefaultClientTimeout),
 		githubapp.WithClientCaching(false, func() httpcache.Cache { return httpcache.NewMemoryCache() }),
@@ -36,5 +35,5 @@ func NewClientManager(config *cfg.Config) (*ClientManager, error) {
 		return nil, err
 	}
 
-	return &ClientManager{cc, config}, nil
+	return &ClientManager{cc}, nil
 }

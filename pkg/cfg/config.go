@@ -31,6 +31,20 @@ type AppConfig struct {
 	UserAgent string `yaml:"user_agent" json:"user_agent"`
 }
 
+// AppLogConfig struct contains the configuration used to initialize the logger.
+type AppLogConfig struct {
+	// ConsoleEnable controls whether or not to log to standard output
+	ConsoleEnable bool `yaml:"console_enable" json:"console_enable"`
+	// ConsolePretty controls whether console output is pretty printed (true)
+	// or printed as structured JSON (false)
+	ConsolePretty bool `yaml:"console_pretty" json:"console_pretty"`
+	// "trace", "debug", "info", "warn", or "error"
+	Level string `yaml:"level" json:"level"`
+	// log to standard output -> "" or "stdout"
+	// log to a file -> "../relative/file/path" or "/absolute/file/path"
+	File string `yaml:"file" json:"file"`
+}
+
 // AzureAIConfig struct contains the configuration items used to create a client
 // for interacting with the APIs of the Azure AI Language service.
 type AzureAIConfig struct {
@@ -48,20 +62,6 @@ type AzureAIConfig struct {
 	ShowStats bool `yaml:"show_stats" json:"show_stats"`
 }
 
-// AppLogConfig struct contains the configuration used to initialize the logger.
-type AppLogConfig struct {
-	// ConsoleEnable controls whether or not to log to standard output
-	ConsoleEnable bool `yaml:"console_enable" json:"console_enable"`
-	// ConsolePretty controls whether console output is pretty printed (true)
-	// or printed as structured JSON (false)
-	ConsolePretty bool `yaml:"console_pretty" json:"console_pretty"`
-	// "trace", "debug", "info", "warn", or "error"
-	Level string `yaml:"level" json:"level"`
-	// log to standard output -> "" or "stdout"
-	// log to a file -> "../relative/file/path" or "/absolute/file/path"
-	File string `yaml:"file" json:"file"`
-}
-
 // CommandConfig struct contains the configuration used to run a command.
 // Only used when AppConfig.Mode == AppModeCLI.
 type CommandConfig struct {
@@ -72,11 +72,6 @@ type CommandConfig struct {
 	//   - "scan-repos" to scan a repo for PHI // TODO
 	//   - "version" to print the app version
 	Run string `yaml:"run" json:"run"`
-	// WorkDir is the base directory for work performed by any command
-	//
-	// Any git files/repos processed by the app will be cloned into a
-	// subdirectory of WorkDir.
-	WorkDir string `yaml:"work_dir" json:"workDir"`
 }
 
 // GitAuthConfig struct contains the configuration used to setup
@@ -97,21 +92,28 @@ type GitAuthConfig struct {
 	Token string `yaml:"token" json:"token"`
 }
 
-// GitHubConfig struct contains the configuration used to create clients for
-// interacting with GitHub APIs (outbound) and webhook events (inbound).
-type GitHubConfig struct {
+// GitConfig struct contains the configuration used clone from and
+// push (commits) to repos using the git protocol.
+type GitConfig struct {
 	// Auth config for git protocol and GitHub API clients
 	Auth GitAuthConfig `yaml:"auth" json:"auth"`
 	// control the behavior of the CLI by specifying the organization
 	// and/or repositories to scan
-	Scan struct {
-		Organization string   `yaml:"organization" json:"organization"`
-		Repositories []string `yaml:"repositories" json:"repositories"`
-	} `yaml:"scan" json:"scan"`
+	Scan GitScanConfig `yaml:"scan" json:"scan"`
+	// WorkDir is the base directory for working with git repos.
+	//
+	// Any git repositories processed by the app will be cloned into
+	// a subdirectory of WorkDir.
+	WorkDir string `yaml:"work_dir" json:"workDir"`
+}
 
-	// App configuration is required when running the app in "server" mode, where
-	// the IntegrationID, WebhookSecret, and PrivateKey are required for running
-	// a secure installation of a GitHub App.
+// GitHubConfig struct contains the configuration used to create clients for
+// interacting with GitHub APIs (outbound) and webhook events (inbound).
+type GitHubConfig struct {
+	// App configuration is required for conversion to githubapp.Config struct,
+	// which is required when running the app in "server" mode. Running a secure
+	// installation of a GitHub app requires prior setup of the values used for
+	// IntegrationID, WebhookSecret, and PrivateKey.
 	App struct {
 		IntegrationID int64  `yaml:"integration_id" json:"integrationId"`
 		WebhookSecret string `yaml:"webhook_secret" json:"webhookSecret"`
@@ -119,13 +121,56 @@ type GitHubConfig struct {
 	} `yaml:"app" json:"app"`
 	// OAuth (and other) configurations are not currently required / used in
 	//  the app, but are required for conversion to a githubapp.Config struct.
+	//
+	// OAuth is required for conversion to a githubapp.Config struct.
 	OAuth struct {
 		ClientID     string `yaml:"client_id" json:"clientId"`
 		ClientSecret string `yaml:"client_secret" json:"clientSecret"`
 	} `yaml:"oauth" json:"oauth"`
-	WebURL   string `yaml:"web_url" json:"webUrl"`
+	// WebURL is required for conversion to a githubapp.Config struct.
+	WebURL string `yaml:"web_url" json:"webUrl"`
+	// V3APIURL is required for conversion to a githubapp.Config struct.
 	V3APIURL string `yaml:"v3_api_url" json:"v3ApiUrl"`
+	// V4APIURL is required for conversion to a githubapp.Config struct.
 	V4APIURL string `yaml:"v4_api_url" json:"v4ApiUrl"`
+}
+
+// GetGitHubAppConfig() method converts the GitHub portion of the Config to
+// a githubapp.Config struct that can be used with the githubapp package.
+func (c *GitHubConfig) GetGitHubAppConfig() *githubapp.Config {
+	out := &githubapp.Config{}
+
+	out.App.IntegrationID = c.App.IntegrationID
+	out.App.WebhookSecret = c.App.WebhookSecret
+	out.App.PrivateKey = c.App.PrivateKey
+	out.OAuth.ClientID = c.OAuth.ClientID
+	out.OAuth.ClientSecret = c.OAuth.ClientSecret
+	out.WebURL = c.WebURL
+	out.V3APIURL = c.V3APIURL
+	out.V4APIURL = c.V4APIURL
+
+	return out
+}
+
+// GitScanConfig struct contains the configuration used to setup a PHI scan
+// for some organization and/or set of repositories.
+type GitScanConfig struct {
+	// IgnoreRepositories is a list of GitHub repositories to exclude/ignore
+	// from the scan, where each entry is a string in the format "<org>/<repo>"
+	// or "<user>/<repo>". Values in this list take precedence over values in
+	// the Repositories list.
+	IgnoreRepositories []string `yaml:"ignore_repositories" json:"ignore_repositories"`
+	// Organization is the URL of the GitHub organization to scan, where the
+	// app will query the GitHub API for a list of repositories to scan.
+	Organization string `yaml:"organization" json:"organization"`
+	// Repositories is a list of GitHub repositories to scan, where each entry
+	// is a string in the format "<org>/<repo>" or "<user>/<repo>".
+	//
+	// Repositories can be used in parallel with Organization, where the app
+	// will scan all repositories in the Organization, plus any repositories
+	// listed in Repositories, minus any duplicates and minus any repositories
+	// listed in the IgnoreRepositories list.
+	Repositories []string `yaml:"repositories" json:"repositories"`
 }
 
 // ServerConfig struct contains the configuration used to start the HTTP server.
@@ -141,25 +186,9 @@ type Config struct {
 	App     AppConfig     `yaml:"app" json:"app"`
 	AzureAI AzureAIConfig `yaml:"azure_ai" json:"azure_ai"`
 	Command CommandConfig `yaml:"command" json:"command"`
+	Git     GitConfig     `yaml:"git" json:"git"`
 	GitHub  GitHubConfig  `yaml:"github" json:"github"`
 	Server  ServerConfig  `yaml:"server" json:"server"`
-}
-
-// GetGitHubAppConfig() method converts the GitHub portion of the Config to
-// a githubapp.Config struct that can be used with the githubapp package.
-func (c *Config) GetGitHubAppConfig() *githubapp.Config {
-	out := &githubapp.Config{}
-
-	out.App.IntegrationID = c.GitHub.App.IntegrationID
-	out.App.WebhookSecret = c.GitHub.App.WebhookSecret
-	out.App.PrivateKey = c.GitHub.App.PrivateKey
-	out.OAuth.ClientID = c.GitHub.OAuth.ClientID
-	out.OAuth.ClientSecret = c.GitHub.OAuth.ClientSecret
-	out.WebURL = c.GitHub.WebURL
-	out.V3APIURL = c.GitHub.V3APIURL
-	out.V4APIURL = c.GitHub.V4APIURL
-
-	return out
 }
 
 // default() method sets default values for optional config fields.
@@ -184,8 +213,8 @@ func (c *Config) defaultConfig() {
 	if c.Command.Run == "" {
 		c.Command.Run = DefaultCommandRun
 	}
-	if c.Command.WorkDir == "" {
-		c.Command.WorkDir = DefaultCommandWorkDir
+	if c.Git.WorkDir == "" {
+		c.Git.WorkDir = DefaultCommandWorkDir
 	}
 	// set defaults for optional c.GitHub config values
 	if c.GitHub.V3APIURL == "" {
@@ -236,8 +265,8 @@ func (c *Config) verifyConfigCLI() (e error) {
 		c.AzureAI.ConfidenceThreshold = DefaultConfidenceThreshold
 	}
 
-	// check the c.GitHub.Auth.Token config value
-	if c.GitHub.Auth.SSHKeyPath == "" && c.GitHub.Auth.Token == "" {
+	// check the c.Git.Auth.Token config value
+	if c.Git.Auth.SSHKeyPath == "" && c.Git.Auth.Token == "" {
 		e = errors.New("missing required config value: either 'github.auth.ssh_key_path' or github.auth.token' must be set")
 		return
 	}

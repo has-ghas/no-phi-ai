@@ -6,8 +6,6 @@ import (
 	"github.com/google/go-github/v58/github"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-
-	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 )
 
 const LabelCleanPHI string = "Clean scan by no-phi-ai"
@@ -22,7 +20,7 @@ func checkResponse(resp *github.Response, err error) error {
 	return nil
 }
 
-func generateLabels(config *cfg.Config) []*github.Label {
+func generateLabels() []*github.Label {
 	// set defaults for string vars required by github.Label struct
 	var (
 		cleanPHIlabel = LabelCleanPHI
@@ -88,7 +86,7 @@ func listRepoLabels(ctx context.Context, client *github.Client, owner string, re
 
 // setRepoLabels() function creates or updates labels in a GitHub repo to contain the
 // full set of labels that we may want to apply to issues in that repo.
-func setRepoLabels(ctx context.Context, client *github.Client, owner string, repo string, config *cfg.Config) error {
+func setRepoLabels(ctx context.Context, client *github.Client, owner string, repo string) error {
 	// determine which labels already exist in the repo
 	repoLabels, err := listRepoLabels(ctx, client, owner, repo)
 	if err != nil {
@@ -96,7 +94,7 @@ func setRepoLabels(ctx context.Context, client *github.Client, owner string, rep
 	}
 
 	// generate the desired-state labels for the repo
-	labels := generateLabels(config)
+	labels := generateLabels()
 
 	// ensure each desired-state label exists in the repo with matching name and description
 	for _, label := range labels {
@@ -130,7 +128,7 @@ func setRepoLabels(ctx context.Context, client *github.Client, owner string, rep
 
 // updateIssueLabels() function updates the labels associated with a GitHub issue,
 // including the creation of any labels that don't already exist in the repo.
-func updateIssueLabels(ctx context.Context, client *github.Client, owner string, repo string, issueNum int, labelsToAdd, labelsToRemove []string, config *cfg.Config) error {
+func updateIssueLabels(ctx context.Context, client *github.Client, owner string, repo string, issueNum int, labelsToAdd, labelsToRemove []string) error {
 	if len(labelsToAdd) == 0 && len(labelsToRemove) == 0 {
 		return errors.New("cannot apply labels : input label lists are empty")
 	}
@@ -141,7 +139,7 @@ func updateIssueLabels(ctx context.Context, client *github.Client, owner string,
 		resp  *github.Response
 	)
 	// create repo labels if they don't exist
-	if err = setRepoLabels(ctx, client, owner, repo, config); err != nil {
+	if err = setRepoLabels(ctx, client, owner, repo); err != nil {
 		return err
 	}
 

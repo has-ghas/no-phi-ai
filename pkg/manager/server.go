@@ -21,7 +21,7 @@ import (
 // initServer() method initializes the HTTP server and registers handlers.
 func (m *Manager) initServer() {
 	// setup the rate limiter for the HTTP server
-	lmt := tollbooth.NewLimiter(m.Config.Server.RateLimit, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
+	lmt := tollbooth.NewLimiter(m.config.Server.RateLimit, &limiter.ExpirableOptions{DefaultExpirationTTL: time.Hour})
 	lmt.SetHeader("Authorization", []string{})
 	lmt.SetHeaderEntryExpirationTTL(time.Hour)
 	lmt.SetMessage(`{"code":429,"response":"You have reached maximum request limit. Please try again in a few seconds."}`)
@@ -37,31 +37,31 @@ func (m *Manager) initServer() {
 		}),
 	))
 	// setup structured logging for the HTTP server
-	router.Use(handlers.StructuredLogger(m.Logger))
+	router.Use(handlers.StructuredLogger(m.logger))
 	// allow the HTTP server to recover from panics
 	router.Use(gin.Recovery())
 
 	// setup an http.Handler as the event dispatcher for GitHub webhook events
-	eventDispatcher, err := setupEventDispatcher(m.Config)
+	eventDispatcher, err := setupEventDispatcher(m.config)
 	if err != nil {
-		m.Logger.Fatal().Err(err).Msg("failed to setup event handler for new Manager")
+		m.logger.Fatal().Err(err).Msg("failed to setup event handler for new Manager")
 	}
 
 	// setup routes for the HTTP server
 	v1 := router.Group(cfg.RouteGroupGHv1)
 	v1.POST(cfg.RouteWebhook, handlers.LimitHandler(lmt), gin.WrapH(eventDispatcher))
 
-	// set the m.Server field to a new http.Server instance
-	m.Server = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", m.Config.Server.Address, m.Config.Server.Port),
+	// set the m.server field to a new http.Server instance
+	m.server = &http.Server{
+		Addr:    fmt.Sprintf("%s:%d", m.config.Server.Address, m.config.Server.Port),
 		Handler: router,
 	}
 }
 
 // logRoutes() function logs the HTTP routes registered with the gin Router.
 func (m *Manager) logRoutes() {
-	for _, route := range m.Server.Handler.(*gin.Engine).Routes() {
-		m.Logger.Info().Msgf("serving endpoint -> %s %s%s", route.Method, m.Server.Addr, route.Path)
+	for _, route := range m.server.Handler.(*gin.Engine).Routes() {
+		m.logger.Info().Msgf("serving endpoint -> %s %s%s", route.Method, m.server.Addr, route.Path)
 	}
 }
 
@@ -72,7 +72,7 @@ func (m *Manager) logRoutes() {
 func (m *Manager) runServer() error {
 	m.logRoutes()
 	// run the HTTP server
-	return m.Server.ListenAndServe()
+	return m.server.ListenAndServe()
 }
 
 func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
@@ -108,7 +108,7 @@ func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
 
 	// register the event handlers with a new/default event dispatcher
 	eventDispatcher := githubapp.NewDefaultEventDispatcher(
-		*config.GetGitHubAppConfig(),
+		*config.GitHub.GetGitHubAppConfig(),
 		installationHandler,
 		issueCommentHandler,
 		pullRequestHandler,

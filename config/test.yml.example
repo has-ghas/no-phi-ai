@@ -14,6 +14,14 @@ azure_ai:
   confidence_threshold: 0.6
   service: 'https://your-service-name.cognitiveservices.azure.com/'
 
+git:
+  auth:
+    ssh_key_path: ''
+    token: 'test123'
+  scan:
+    organization: ''
+    repositories: []
+
 github:
   app:
     # integration_id cannot be 0 ; ERROR expected here...
@@ -21,12 +29,6 @@ github:
     webhook_secret: 'your-app-webhook-secret-here'
     private_key: |
       your-app-private-key-content-here
-  auth:
-    ssh_key_path: ''
-    token: 'test123'
-  scan:
-    organization: ''
-    repositories: []
   v3_api_url: 'https://api.github.com/'
 
 server:
