@@ -22,6 +22,7 @@ const DefaultCommandRun string = CommandRunHelp
 const DefaultCommandWorkDir string = "/tmp/" + DefaultAppName
 const DefaultConfidenceThreshold float64 = 0.6
 const DefaultGitHubV3APIURL string = "https://api.github.com"
+const DefaultMaxRequestsOutstanding int = 100
 const DefaultRateLimit float64 = 1000.0
 const DefaultServerAddress string = "127.0.0.1"
 const DefaultServerPort int = 8080

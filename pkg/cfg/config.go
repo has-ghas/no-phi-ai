@@ -160,6 +160,8 @@ type GitScanConfig struct {
 	// or "<user>/<repo>". Values in this list take precedence over values in
 	// the Repositories list.
 	IgnoreRepositories []string `yaml:"ignore_repositories" json:"ignore_repositories"`
+	// Limits config
+	Limits GitScanLimitsConfig `yaml:"limits" json:"limits"`
 	// Organization is the URL of the GitHub organization to scan, where the
 	// app will query the GitHub API for a list of repositories to scan.
 	Organization string `yaml:"organization" json:"organization"`
@@ -171,6 +173,10 @@ type GitScanConfig struct {
 	// listed in Repositories, minus any duplicates and minus any repositories
 	// listed in the IgnoreRepositories list.
 	Repositories []string `yaml:"repositories" json:"repositories"`
+}
+
+type GitScanLimitsConfig struct {
+	MaxRequestsOutstanding int `yaml:"max_requests_outstanding" json:"max_requests_outstanding"`
 }
 
 // ServerConfig struct contains the configuration used to start the HTTP server.
@@ -212,6 +218,9 @@ func (c *Config) defaultConfig() {
 	c.AzureAI.ShowStats = DefaultAzureAIShowStats
 	if c.Command.Run == "" {
 		c.Command.Run = DefaultCommandRun
+	}
+	if c.Git.Scan.Limits.MaxRequestsOutstanding == 0 {
+		c.Git.Scan.Limits.MaxRequestsOutstanding = DefaultMaxRequestsOutstanding
 	}
 	if c.Git.WorkDir == "" {
 		c.Git.WorkDir = DefaultCommandWorkDir

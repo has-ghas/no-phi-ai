@@ -5,6 +5,25 @@ type AnalysisInput struct {
 	Documents []Document `json:"documents"`
 }
 
+type AsyncDocumentWrapper struct {
+	ChanQuit     chan error
+	ChanResponse chan<- DocumentResponse
+	Document     *Document
+}
+
+func NewAsyncDocumentWrapper(id, text, language string, response chan<- DocumentResponse) *AsyncDocumentWrapper {
+	document := NewDocument(id, text, language)
+	return &AsyncDocumentWrapper{
+		ChanQuit:     make(chan error),
+		ChanResponse: response,
+		Document:     &document,
+	}
+}
+
+// Document struct defines the structure of a document to be analyzed by the
+// Azure AI Language service, where the ID is the only mechanism for tracking
+// the response for a specific document and where the text is limited to
+// DocumentCharacterLimit characters.
 // ref: https://learn.microsoft.com/en-us/rest/api/language/text-analysis-runtime/analyze-text?view=rest-language-2023-04-01&tabs=HTTP#multilanguageinput
 type Document struct {
 	ID       string `json:"id"`
@@ -12,6 +31,8 @@ type Document struct {
 	Text     string `json:"text"`
 }
 
+// NewDocument() function returns a new Document object with the provided ID
+// and text, and with the language set to the DefaultLanguage if not provided.
 func NewDocument(id, text, language string) Document {
 	if len(language) == 0 {
 		language = DefaultLanguage
@@ -24,6 +45,11 @@ func NewDocument(id, text, language string) Document {
 	}
 }
 
+// GetID() method returns the ID of the Document.
+func (doc *Document) GetID() string {
+	return doc.ID
+}
+
 // ref: https://learn.microsoft.com/en-us/rest/api/language/text-analysis-runtime/analyze-text?view=rest-language-2023-04-01&tabs=HTTP#error
 type DocumentError struct {
 	ID    string `json:"id"`
@@ -34,6 +60,8 @@ type DocumentError struct {
 	} `json:"error"`
 }
 
+// DocumentResponse struct represents the document-specific response from the
+// Azure AI Language service API.
 // ref: https://learn.microsoft.com/en-us/rest/api/language/text-analysis-runtime/analyze-text?view=rest-language-2023-04-01&tabs=HTTP#documents
 type DocumentResponse struct {
 	Entities     []Entity           `json:"entities"`
