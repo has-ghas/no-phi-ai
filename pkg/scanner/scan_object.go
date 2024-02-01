@@ -1,8 +1,7 @@
 package scanner
 
 import (
-	"time"
-
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/uuid"
 )
 
@@ -16,7 +15,7 @@ type ScanObject struct {
 	// of the file, organization, repository, etc.
 	Name string `json:"name"`
 	// Status tracks the different statuses of the object scan.
-	Status *ScanStatus `json:"status"`
+	Status *Status `json:"status"`
 	// Type can be one of:
 	//   - "commit"
 	//   = "issue_comment"
@@ -29,75 +28,94 @@ type ScanObject struct {
 	Type string `json:"type"`
 	// The unique URL associated with the object.
 	URL string `json:"url"`
+
+	documents DocumentTrackerMap
 }
 
 // NewScanObject() function initializes a new ScanObject struct with
 // the provided name, type, and URL. Sets default values for the
 // Status of the ScanObject.
-func NewScanObject(name, object_type, url string) *ScanObject {
+func NewScanObject(id, name, object_type, url string) *ScanObject {
+	// create a random, unique ID if one is not provided
+	if id == "" {
+		id = uuid.New().String()
+	}
 	return &ScanObject{
-		ID:     uuid.New().String(),
-		Name:   name,
-		Status: NewScanStatus(),
-		Type:   object_type,
-		URL:    url,
+		ID:        id,
+		Name:      name,
+		Status:    NewStatus(),
+		Type:      object_type,
+		URL:       url,
+		documents: NewDocumentTrackerMap(),
 	}
 }
 
-// ScanStatus struct is used to track the status of a scan for the
-// associated ScanObject, where ScanStatus is embedded in ScanObject.
-type ScanStatus struct {
-	Completed   bool  `json:"completed"`
-	CompletedAt int64 `json:"completed_at"`
-	Errored     bool  `json:"errored"`
-	ErroredAt   int64 `json:"errored_at"`
-	Started     bool  `json:"started"`
-	StartedAt   int64 `json:"started_at"`
+// GetID() method returns the ID of the ScanObject.
+func (so *ScanObject) GetID() string {
+	return so.ID
 }
 
-// NewScanStatus() function initializes a new ScanStatus struct with
-// default values, meaning that booleans are set to false and timestamps
-// are set to 0.
-func NewScanStatus() *ScanStatus {
-	return &ScanStatus{
-		Completed:   false,
-		CompletedAt: 0,
-		Errored:     false,
-		ErroredAt:   0,
-		Started:     false,
-		StartedAt:   0,
+// GetName() method returns the Name of the ScanObject.
+func (so *ScanObject) GetName() string {
+	return so.Name
+}
+
+// GetType() method returns the Type of the ScanObject.
+func (so *ScanObject) GetType() string {
+	return so.Type
+}
+
+// GetURL() method returns the URL of the ScanObject.
+func (so *ScanObject) GetURL() string {
+	return so.URL
+}
+
+// GetDocuments() method returns the DocumentTrackerMap of objects
+// created for -- and associated with -- the ScanObject. Returns a non-nil
+// error if the request has not been created/set for the ScanObject.
+func (so *ScanObject) GetDocuments() (documents DocumentTrackerMap, e error) {
+	if len(so.documents) == 0 {
+		e = ErrScanObjectDocumentsNotSet
+		return
+	}
+	documents = so.documents
+	return
+}
+
+// SetDocuments() method sets the map of documents tracked for the ScanObject.
+func (so *ScanObject) SetDocuments(documents DocumentTrackerMap) (e error) {
+	if len(documents) == 0 || documents == nil {
+		return ErrScanObjectDocumentsNotValid
+	}
+	so.documents = documents
+	return
+}
+
+// ScanObjectHashed struct is a ScanObject that has been extended to include
+// a private field for storing the plumbing.Hash of the object and a public
+// method for getting that hash. Useful for scan objects that can always be
+// associated with some plumbing.Hash, such as a commit or a file.
+type ScanObjectHashed struct {
+	ScanObject
+
+	hash plumbing.Hash
+}
+
+// NewScanObjectHashed() function initializes a new ScanObjectHashed struct
+// with the provided plumbing.Hash, name, type, and URL.
+func NewScanObjectHashed(hash plumbing.Hash, name, object_type, url string) *ScanObjectHashed {
+	return &ScanObjectHashed{
+		ScanObject: *NewScanObject(
+			hash.String(),
+			name,
+			object_type,
+			url,
+		),
+		hash: hash,
 	}
 }
 
-// SetCompleted() method checks if the scan status is already set to
-// completed and, if not, sets the Completed and CompletedAt fields
-// and resets the Errored and ErroredAt fields.
-func (s *ScanStatus) SetCompleted() {
-	if !s.Completed {
-		s.Completed = true
-		s.CompletedAt = time.Now().Unix()
-		s.Errored = false
-		s.ErroredAt = 0
-		// any scan that is completed is also started
-		s.Started = true
-	}
-}
-
-// SetErrored() method sets the Errored and ErroredAt fields to indicate
-// an error occurred during the scan of the associated object and resets
-// the Completed and CompletedAt fields.
-func (s *ScanStatus) SetErrored() {
-	s.Completed = false
-	s.CompletedAt = 0
-	s.Errored = true
-	s.ErroredAt = time.Now().Unix()
-}
-
-// SetStarted() method checks if the scan status is already set to
-// started and, if not, sets the Started and StartedAt fields.
-func (s *ScanStatus) SetStarted() {
-	if !s.Started {
-		s.Started = true
-		s.StartedAt = time.Now().Unix()
-	}
+// GetHash() method returns the plumbing.Hash of the ScanObjectHashed object.
+func (so *ScanObjectHashed) GetHash() plumbing.Hash {
+	return so.hash
 }

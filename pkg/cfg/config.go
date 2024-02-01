@@ -31,6 +31,20 @@ type AppConfig struct {
 	UserAgent string `yaml:"user_agent" json:"user_agent"`
 }
 
+// AppLogConfig struct contains the configuration used to initialize the logger.
+type AppLogConfig struct {
+	// ConsoleEnable controls whether or not to log to standard output
+	ConsoleEnable bool `yaml:"console_enable" json:"console_enable"`
+	// ConsolePretty controls whether console output is pretty printed (true)
+	// or printed as structured JSON (false)
+	ConsolePretty bool `yaml:"console_pretty" json:"console_pretty"`
+	// "trace", "debug", "info", "warn", or "error"
+	Level string `yaml:"level" json:"level"`
+	// log to standard output -> "" or "stdout"
+	// log to a file -> "../relative/file/path" or "/absolute/file/path"
+	File string `yaml:"file" json:"file"`
+}
+
 // AzureAIConfig struct contains the configuration items used to create a client
 // for interacting with the APIs of the Azure AI Language service.
 type AzureAIConfig struct {
@@ -46,20 +60,6 @@ type AzureAIConfig struct {
 	// ShowStats controls whether the "showStats=true" query parameter will
 	// be added to "analyze" requests sent to the AI Language service.
 	ShowStats bool `yaml:"show_stats" json:"show_stats"`
-}
-
-// AppLogConfig struct contains the configuration used to initialize the logger.
-type AppLogConfig struct {
-	// ConsoleEnable controls whether or not to log to standard output
-	ConsoleEnable bool `yaml:"console_enable" json:"console_enable"`
-	// ConsolePretty controls whether console output is pretty printed (true)
-	// or printed as structured JSON (false)
-	ConsolePretty bool `yaml:"console_pretty" json:"console_pretty"`
-	// "trace", "debug", "info", "warn", or "error"
-	Level string `yaml:"level" json:"level"`
-	// log to standard output -> "" or "stdout"
-	// log to a file -> "../relative/file/path" or "/absolute/file/path"
-	File string `yaml:"file" json:"file"`
 }
 
 // CommandConfig struct contains the configuration used to run a command.
@@ -160,7 +160,7 @@ type GitScanConfig struct {
 	// or "<user>/<repo>". Values in this list take precedence over values in
 	// the Repositories list.
 	IgnoreRepositories []string `yaml:"ignore_repositories" json:"ignore_repositories"`
-	// Organization is the name of the GitHub organization to scan, where the
+	// Organization is the URL of the GitHub organization to scan, where the
 	// app will query the GitHub API for a list of repositories to scan.
 	Organization string `yaml:"organization" json:"organization"`
 	// Repositories is a list of GitHub repositories to scan, where each entry

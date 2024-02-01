@@ -10,11 +10,28 @@ import (
 func ParseRepoNameFromURL(url string) (string, error) {
 	i := strings.LastIndex(url, "/")
 	if i == -1 {
-		return "", errors.New("could not parse repo name from url = " + url)
+		return "", errors.New("failed to parse repo name from url = " + url)
 	}
-	repoName := url[i+1:]
+	repo_name := url[i+1:]
 
-	repoName = strings.TrimSuffix(repoName, ".git")
+	repo_name = strings.TrimSuffix(repo_name, ".git")
 
-	return repoName, nil
+	return repo_name, nil
+}
+
+func ParseOrgNameFromURL(url string) (string, error) {
+	i := strings.LastIndex(url, "/")
+	if i == -1 {
+		return "", errors.New("failed to parse org name from url = " + url)
+	}
+	org_name := url[i+1:]
+
+	if strings.Contains(org_name, ".git") {
+		j := strings.LastIndex(url[:i], "/")
+		if j == -1 {
+			return "", errors.New("failed to parse org name from url = " + url)
+		}
+	}
+
+	return org_name, nil
 }

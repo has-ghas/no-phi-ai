@@ -20,7 +20,7 @@ type ScanTracker struct {
 	files        []*ScanObject
 	git          *nogit.GitManager
 	logger       *zerolog.Logger
-	organization *ScanObject
+	organization *ScanOrganization
 	repositories []*ScanRepository
 }
 
@@ -31,7 +31,7 @@ func NewScanTracker(
 	ctx context.Context,
 	gitManager *nogit.GitManager,
 	logger *zerolog.Logger,
-	org string,
+	org_URL string,
 	repo_URLs []string,
 ) (*ScanTracker, error) {
 	if gitManager == nil {
@@ -39,18 +39,22 @@ func NewScanTracker(
 	}
 
 	// create a ScanObject for the organization, if provided
-	var org_object *ScanObject
-	if org != "" {
-		org_object = NewScanObject(org, "organization", "")
+	var org_object *ScanOrganization
+	if org_URL != "" {
+		var org_err error
+		org_object, org_err = NewScanOrganization(org_URL)
+		if org_err != nil {
+			return nil, org_err
+		}
 	}
 	// create a ScanObject for each repository
 	repo_objects := make([]*ScanRepository, 0)
 	for _, repo_URL := range repo_URLs {
-		repo_name, err := nogit.ParseRepoNameFromURL(repo_URL)
+		scan_repo, err := NewScanRepository(repo_URL)
 		if err != nil {
 			return nil, err
 		}
-		repo_objects = append(repo_objects, NewScanRepository(repo_name, repo_URL))
+		repo_objects = append(repo_objects, scan_repo)
 	}
 
 	return &ScanTracker{
@@ -74,7 +78,7 @@ func (st *ScanTracker) Scan() (e error) {
 	st.logger.Debug().Ctx(st.ctx).Msg("started ScanTracker.Scan()")
 	// clone the repositories first in order to minimize the number of API
 	// calls to GitHub and/or the time wasted via network latency.
-	if e = st.respositoriesClone(); e != nil {
+	if e = st.scanRepositories(); e != nil {
 		return
 	}
 	// TODO : remove debug logging
@@ -104,22 +108,16 @@ func (st *ScanTracker) preScan() (e error) {
 	return
 }
 
-// respositoriesClone() method clones each repository in ScanTracker.repositories
+// scanRepositories() method clones each repository in ScanTracker.repositories
 // into a temporary directory. Returns a non-nil error if any part of the cloning
 // process fails.
-func (st *ScanTracker) respositoriesClone() (e error) {
+func (st *ScanTracker) scanRepositories() (e error) {
 	// clone each repository into a temporary directory
 	for _, scan_repo := range st.repositories {
-		// ensure the scan status shows that the scan has started
-		scan_repo.Status.SetStarted()
-		// clone the repository
-		repo, err := st.git.CloneRepo(scan_repo.URL)
-		if err != nil {
-			e = err
+		// clone the repository store its pointer in the ScanRepository object
+		if e = scan_repo.ScanForPHI(st.git); e != nil {
+			return
 		}
-		// set the repository for the ScanRepository object
-		scan_repo.SetRepository(repo)
 	}
-	// TODO : keep track of the cloned repositories and their scan status
 	return
 }
