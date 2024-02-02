@@ -1,14 +1,26 @@
 package scanner
 
-import "github.com/has-ghas/no-phi-ai/pkg/client/az"
+import (
+	"fmt"
+	"sync"
+
+	"github.com/pkg/errors"
+
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+)
 
 // DocumentTrackerInput struct is used to provide the input parameters for
-// creating a new DocumentTracker object.
+// creating a new DocumentTracker object. Wraps the az.Document object and
+// adds fields for tracking the source of the document text back to the
+// original source path (e.g. file, comment, issue body, etc.) and the
+// starting offset of the source text within the document.
 type DocumentTrackerInput struct {
-	Document     *az.Document
-	Path         string
-	OffsetLine   int
-	OffsetColumn int
+	ChannelDocuments chan<- az.AsyncDocumentWrapper
+	ChannelQuit      <-chan error
+	Document         *az.Document
+	ID               string
+	Offset           int
+	Path             string
 }
 
 // DocumentTracker struct provides a management wrapper for tracking the status
@@ -19,40 +31,99 @@ type DocumentTracker struct {
 	// input ID is the ID of the Document being scanned and must match the ID
 	// of the DocumentResponse object for a successful mapping of the response.
 	ID string `json:"id"`
+	// Offset is the starting position of the source Text within the document,
+	// set to the index of the first character (from the source Text) in relation
+	// to the start of the full text source.
+	Offset int `json:"offset"`
 	// Path is the location of the document being tracked, such as a file path
 	// or the URL of a comment on a GitHub issue.
-	Path string `json:"location"`
-	// OffsetColumn is the starting character number within the OffsetLine
-	OffsetColumn int `json:"offset_column"`
-	// OffsetLine is the starting line number within the document, such as the
-	// line number within a file or comment body.
-	OffsetLine int `json:"offset_line"`
+	Path string `json:"path"`
 
-	document *az.Document
-	response *az.DocumentResponse
+	channelDocuments chan<- az.AsyncDocumentWrapper
+	channelQuit      <-chan error
+	channelResponse  chan az.DocumentResponse
+	document         *az.Document
+	response         *az.DocumentResponse
 }
 
-// NewDocumentTracker() function initializes a new DocumentTracker object for
-// use in tracking the status of a document scan and mapping the response back
-// to the source Path (e.g. of the file), OffsetLine (e.g. line number within
-// the file), and OffsetColumn (e.g. character number within the line).
-func NewDocumentTracker(in DocumentTrackerInput) *DocumentTracker {
+// NewDocumentTracker() function initializes a new DocumentTracker object
+// for use in tracking the status of a document scan and mapping the
+// response back to the source Path (e.g. of the file) and Offset
+// (e.g. starting character of the target text within the source file.
+func NewDocumentTracker(in *DocumentTrackerInput) (*DocumentTracker, error) {
 	return &DocumentTracker{
-		ID:           in.Document.ID,
-		OffsetColumn: in.OffsetColumn,
-		OffsetLine:   in.OffsetLine,
-		Path:         in.Path,
-		document:     in.Document,
-		response:     nil,
-	}
+		ID:               in.ID,
+		Offset:           in.Offset,
+		Path:             in.Path,
+		channelDocuments: in.ChannelDocuments,
+		channelResponse:  make(chan az.DocumentResponse),
+		channelQuit:      in.ChannelQuit,
+		document:         in.Document,
+		response:         nil,
+	}, nil
 }
 
-func (dt *DocumentTracker) GetDocument() *az.Document {
-	return dt.document
-}
-
+// GetResponse() method returns the response for the tracked document if the
+// response has been received and set, otherwise returns nil.
 func (dt *DocumentTracker) GetResponse() *az.DocumentResponse {
 	return dt.response
+}
+
+// Scan() method creates a new az.AsyncDocumentWrapper object and sends it to
+// the channelDocuments channel for processing and waits for a response to be
+// received on the channelResponse channel created for -- and embedded in --
+// the az.AsyncDocumentWrapper object.
+func (dt *DocumentTracker) Scan() (e error) {
+	// create a new az.AsyncDocumentWrapper object
+	wrapper := az.NewAsyncDocumentWrapper(
+		dt.document.ID,
+		dt.document.Text,
+		"", // use default value for document language
+		dt.channelResponse,
+	)
+	// send the wrapper to the channelDocuments channel
+	dt.channelDocuments <- *wrapper
+
+	// wait for a response to be received on the dt.channelResponse channel,
+	// or for the dt.channelQuit channel to be closed
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		select {
+		case response := <-dt.channelResponse:
+			// TODO : remove TRACE
+			fmt.Printf(
+				"TRACE : DocumentTracker.Scan() : received response : ID=%s\n",
+				response.ID,
+			)
+			dt.SetResponse(&response)
+		case err := <-dt.channelQuit:
+			if err != nil {
+				e = errors.Wrap(e, "document tracker received error from quit channel")
+				return
+			}
+			// TODO : remove TRACE
+			fmt.Printf(
+				"TRACE : DocumentTracker.Scan() : quit channel closed : ID=%s\n",
+				dt.ID,
+			)
+			// return nil error if the quit channel is closed
+			return
+		}
+	}()
+	wg.Wait()
+	if e != nil {
+		return
+	}
+
+	// TODO : remove TRACE
+	fmt.Printf(
+		"TRACE : DocumentTracker.Scan() : goroutine done : ID=%s : Offset=%d\n",
+		wrapper.Document.ID,
+		dt.Offset,
+	)
+	return
 }
 
 // SetResponse() method sets the response for the document being tracked.
@@ -81,4 +152,26 @@ func NewDocumentTrackerMap() DocumentTrackerMap {
 // the DocumentTrackerMap.
 func (m DocumentTrackerMap) CountTotal() int {
 	return len(m)
+}
+
+// Get() method returns the DocumentTracker object for the provided ID, or nil
+// if no such object exists in the map.
+func (m DocumentTrackerMap) Get(id string) *DocumentTracker {
+	document_tracker, exists := m[id]
+	if !exists {
+		return nil
+	}
+	return document_tracker
+}
+
+// Set() method sets the DocumentTracker object for the provided ID in the map.
+// If the ID already exists in the map, the existing DocumentTracker object is
+// replaced with the provided object. Returns a non-nil error if the provided
+// DocumentTracker object is nil.
+func (m DocumentTrackerMap) Set(document_tracker *DocumentTracker) (e error) {
+	if document_tracker == nil {
+		return ErrDocumentTrackerMapInputIsNil
+	}
+	m[document_tracker.ID] = document_tracker
+	return
 }

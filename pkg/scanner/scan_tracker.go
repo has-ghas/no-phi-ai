@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
 )
 
@@ -33,6 +34,8 @@ func NewScanTracker(
 	logger *zerolog.Logger,
 	org_URL string,
 	repo_URLs []string,
+	channel_documents chan<- az.AsyncDocumentWrapper,
+	channel_quit <-chan error,
 ) (*ScanTracker, error) {
 	if gitManager == nil {
 		return nil, errors.New("failed to create scan tracker : gitManager cannot be nil")
@@ -42,7 +45,11 @@ func NewScanTracker(
 	var org_object *ScanOrganization
 	if org_URL != "" {
 		var org_err error
-		org_object, org_err = NewScanOrganization(org_URL)
+		org_object, org_err = NewScanOrganization(
+			org_URL,
+			channel_documents,
+			channel_quit,
+		)
 		if org_err != nil {
 			return nil, org_err
 		}
@@ -50,7 +57,11 @@ func NewScanTracker(
 	// create a ScanObject for each repository
 	repo_objects := make([]*ScanRepository, 0)
 	for _, repo_URL := range repo_URLs {
-		scan_repo, err := NewScanRepository(repo_URL)
+		scan_repo, err := NewScanRepository(
+			repo_URL,
+			channel_documents,
+			channel_quit,
+		)
 		if err != nil {
 			return nil, err
 		}

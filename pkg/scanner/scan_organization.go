@@ -1,6 +1,9 @@
 package scanner
 
-import nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+import (
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+)
 
 // ScanOrganization struct embeds the ScanObject struct and adds fields
 // and methods specific to scanning a GitHub organization.
@@ -11,7 +14,11 @@ type ScanOrganization struct {
 
 // NewScanOrganization() function initializes a new ScanOrganization object using
 // the provided URL for the GitHub organization.
-func NewScanOrganization(org_url string) (*ScanOrganization, error) {
+func NewScanOrganization(
+	org_url string,
+	channel_documents chan<- az.AsyncDocumentWrapper,
+	channel_quit <-chan error,
+) (*ScanOrganization, error) {
 	// parse the name of the organization from the provided URL
 	org_name, err := nogit.ParseOrgNameFromURL(org_url)
 	if err != nil {
@@ -19,11 +26,13 @@ func NewScanOrganization(org_url string) (*ScanOrganization, error) {
 	}
 	// initialize and return a new ScanOrganization object
 	return &ScanOrganization{
-		ScanObject: *NewScanObject(
-			org_url,
-			org_name,
-			ScanObjectTypeOrganization,
-			org_url,
-		),
+		ScanObject: *NewScanObject(&ScanObjectInput{
+			ChannelDocuments: channel_documents,
+			ChannelQuit:      channel_quit,
+			ID:               org_url,
+			Name:             org_name,
+			ObjectType:       ScanObjectTypeOrganization,
+			URL:              org_url,
+		}),
 	}, nil
 }

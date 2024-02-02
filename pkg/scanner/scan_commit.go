@@ -5,6 +5,8 @@ import (
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
 
 // ScanCommit struct embeds the ScanObject struct and adds fields
@@ -19,14 +21,20 @@ type ScanCommit struct {
 
 // NewScanCommit() function initializes a new ScanCommit object using
 // the provided object.Commit.
-func NewScanCommit(commit *object.Commit) *ScanCommit {
+func NewScanCommit(
+	commit *object.Commit,
+	channel_documents chan<- az.AsyncDocumentWrapper,
+	channel_quit <-chan error,
+) *ScanCommit {
 	return &ScanCommit{
-		ScanObjectHashed: *NewScanObjectHashed(
-			commit.ID(),
-			commit.ID().String(),
-			ScanObjectTypeCommit,
-			"",
-		),
+		ScanObjectHashed: *NewScanObjectHashed(commit.ID(), &ScanObjectInput{
+			ChannelDocuments: channel_documents,
+			ChannelQuit:      channel_quit,
+			ID:               commit.ID().String(),
+			Name:             commit.ID().String(),
+			ObjectType:       ScanObjectTypeCommit,
+			URL:              "", // TODO
+		}),
 		commit: commit,
 		files:  []*ScanFile{},
 	}
@@ -49,12 +57,8 @@ func (sc *ScanCommit) GetCommit() *object.Commit {
 // private fields of the ScanCommit.
 func (sc *ScanCommit) ScanFile(file *object.File) error {
 	var e error
-
-	// TODO : remove TRACE
-	fmt.Println("TRACE : ScanCommit.scanFileForPHI() start")
-
-	// get an iterator for the files in the commit
 	var files_iterator *object.FileIter
+	// get an iterator for the files in the commit
 	files_iterator, e = sc.commit.Files()
 	if e != nil {
 		if files_iterator != nil {
@@ -136,7 +140,7 @@ func (sc *ScanCommit) shouldScanFile(file *object.File) (should_scan bool) {
 // object.File and adds it to the list of files tracked in the ScanCommit.
 func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
 	// create a new ScanFile object from the input object.File
-	scan_file, err := NewScanFile(file)
+	scan_file, err := NewScanFile(file, sc.channelDocuments, sc.channelQuit)
 	if err != nil {
 		return nil, err
 	}
@@ -153,9 +157,6 @@ func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
 // (PHI/PII) entity detection documents from the file, and updating the
 // status of the ScanFile object to reflect the results of the scan.
 func (sc *ScanCommit) scanFile(file *object.File) error {
-	// TODO : remove TRACE
-	fmt.Println("TRACE : ScanCommit.scanFile() : start")
-
 	// check if the file should be scanned
 	if !sc.shouldScanFile(file) {
 		fmt.Printf("TRACE : skipping scan of file %s\n", file.Name)
@@ -170,8 +171,8 @@ func (sc *ScanCommit) scanFile(file *object.File) error {
 		return pre_scan_err
 	}
 
-	// run the scan_file.generateDocuments() method and process any error
-	if gen_docs_err := scan_file.generateDocuments(file); gen_docs_err != nil {
+	// run the scan_file.scan() method and process any error
+	if gen_docs_err := scan_file.Scan(file); gen_docs_err != nil {
 		// update the scan_file.Status in order to track the error
 		scan_file.Status.SetErrored(gen_docs_err.Error())
 		// return the error
@@ -186,8 +187,6 @@ func (sc *ScanCommit) scanFile(file *object.File) error {
 		// return the error
 		return post_scan_err
 	}
-	// TODO : remove TRACE
-	fmt.Println("TRACE : ScanCommit.scanFile() : finish")
 
 	return nil
 }

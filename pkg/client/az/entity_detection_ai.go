@@ -51,14 +51,20 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 	}, nil
 }
 
-// GetServiceEndpoint() method return the full URL of the service API endpoint
-func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
-	return ai.endpoint
+// AsyncDetectPiiEntities() method wraps the DetectPiiEntities() method
+// and sends the pass|fail (bool) result to a channel for asynchronous
+// processing.
+func (ai *EntityDetectionAI) AsyncDetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest, resultChan chan<- bool) {
+	detected, e := ai.DetectPiiEntities(ctx, requestData)
+	if e != nil {
+		log.Ctx(ctx).Error().Msgf("error detecting entities: %s", e)
+	}
+	resultChan <- detected
 }
 
-// DetectPiiEntities() method accepts a PiiEntityRecognitionRequest as input and
-// returns an error (or nil) status depending upon the PiiEntityRecognitionResponse
-// from the Azure AI language service.
+// DetectPiiEntities() method accepts a PiiEntityRecognitionRequest as
+// input and returns an error (or nil) status depending upon the
+// PiiEntityRecognitionResponse from the Azure AI language service.
 func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest) (detected bool, e error) {
 	// explicitly set detected to false
 	detected = false
@@ -79,8 +85,8 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 		return
 	}
 
-	req.Header.Add("Ocp-Apim-Subscription-Key", ai.key)
-	req.Header.Add("Content-Type", "application/json")
+	// set the required headers for the HTTP request
+	ai.setHttpRequestHeaders(req)
 
 	resp, err := ai.client.Do(req)
 	if err != nil {
@@ -140,4 +146,16 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	}
 
 	return
+}
+
+// GetServiceEndpoint() method return the full URL of the service API endpoint
+func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
+	return ai.endpoint
+}
+
+// setHttpRequestHeaders() method sets the required headers for any HTTP
+// request to the Azure AI Language service API.
+func (ai *EntityDetectionAI) setHttpRequestHeaders(req *http.Request) {
+	req.Header.Add("Ocp-Apim-Subscription-Key", ai.key)
+	req.Header.Add("Content-Type", "application/json")
 }

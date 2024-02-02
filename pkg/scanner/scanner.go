@@ -2,12 +2,14 @@ package scanner
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
 )
 
@@ -19,11 +21,13 @@ import (
 type Scanner struct {
 	ID string `json:"id"`
 
-	ctx    context.Context
-	config *cfg.GitConfig
-	git    *nogit.GitManager
-	logger *zerolog.Logger
-	scans  map[string]*ScanTracker
+	channelDocuments chan az.AsyncDocumentWrapper
+	channelQuit      chan error
+	config           *cfg.GitConfig
+	ctx              context.Context
+	git              *nogit.GitManager
+	logger           *zerolog.Logger
+	scans            map[string]*ScanTracker
 }
 
 // NewScanner() function initializes a new Scanner instance.
@@ -34,12 +38,17 @@ func NewScanner(config *cfg.GitConfig, ctx context.Context, logger *zerolog.Logg
 	}
 
 	return &Scanner{
-		ID:     uuid.NewString(),
-		config: config,
-		ctx:    ctx,
-		git:    nogit.NewGitManager(config, ctx, logger),
-		logger: logger,
-		scans:  make(map[string]*ScanTracker),
+		ID: uuid.NewString(),
+		// create the channel used to allow ScanObject instances to
+		// communicate by sending documents to be scanned
+		channelDocuments: make(chan az.AsyncDocumentWrapper, config.Scan.Limits.MaxRequestsOutstanding),
+		// create the channel used to interrupt the scan
+		channelQuit: make(chan error),
+		config:      config,
+		ctx:         ctx,
+		git:         nogit.NewGitManager(config, ctx, logger),
+		logger:      logger,
+		scans:       make(map[string]*ScanTracker),
 	}
 }
 
@@ -75,9 +84,13 @@ func (s *Scanner) initScanTracker() (scan_id string, e error) {
 		e = errors.New("failed to init scan tracker because logger is nil")
 		return
 	}
-	// TODO : get the actual list of repositories from a combination of
-	//        config and discovery of organization repositories
+	channel_documents := s.channelDocuments
+	channel_quit := s.channelQuit
+
+	// TODO : derive the actual list of repositories from a combination
+	//        of config and discovery of organization repositories
 	repo_list := s.config.Scan.Repositories
+
 	// initialize a new ScanTracker object
 	scan_tracker, err := NewScanTracker(
 		s.ctx,
@@ -85,6 +98,8 @@ func (s *Scanner) initScanTracker() (scan_id string, e error) {
 		s.logger,
 		s.config.Scan.Organization,
 		repo_list,
+		channel_documents,
+		channel_quit,
 	)
 	if err != nil {
 		e = err
@@ -109,6 +124,49 @@ func (s *Scanner) getScanTracker(scan_id string) (st *ScanTracker, e error) {
 	return
 }
 
+func (s *Scanner) test(wait_group *sync.WaitGroup) {
+	// TODO : remove TRACE
+	s.logger.Trace().Msg("Scanner.test() : marking wait group as done")
+	wait_group.Done()
+}
+
+// processDocuments() method processes documents received from the s.channelDocuments
+// channel. This method is intended to be run as a separate goroutine.
+func (s *Scanner) processDocuments(wait_group *sync.WaitGroup) {
+	defer s.test(wait_group)
+	// TODO : remove doc_count
+	doc_count := 0
+	// TODO : remove test_queue
+	test_queue := make(chan az.AsyncDocumentWrapper, s.config.Scan.Limits.MaxRequestsOutstanding)
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.logger.Warn().Msg("Scanner.processDocuments() : context done")
+			return
+		case <-s.channelQuit:
+			s.logger.Warn().Msg("Scanner.processDocuments() : received quit signal")
+			return
+		case doc := <-s.channelDocuments:
+			// TODO : remoe doc_count
+			// increment the count of documents received
+			doc_count++
+			// TODO : remove TRACE
+			s.logger.Trace().Msgf("Scanner.processDocuments() : received document #%d : ID = %s", doc_count, doc.Document.ID)
+			// TODO : remove test_queue
+			// write the document to the test queue
+			test_queue <- doc
+			// TODO : remove TRACE
+			s.logger.Trace().Msgf("Scanner.processDocuments() : sent document #%d  to queue : ID = %s", doc_count, doc.Document.ID)
+
+			// send the document to the Azure AI Language service API for analysis
+			// TODO
+
+			// wait for the document response to be received from the API
+			// TODO
+		}
+	}
+}
+
 // runScanTracker() method runs the scan for the ScanTracker object with the
 // provided ID and returns an error if any part of the scan fails.
 func (s *Scanner) runScanTracker(scan_id string) (e error) {
@@ -118,7 +176,23 @@ func (s *Scanner) runScanTracker(scan_id string) (e error) {
 	if e != nil {
 		return
 	}
-	// run the scan, let ScanTracker handle the details, and return any error
-	e = scan_tracker.Scan()
+	// setup a wait group to allow for s.processDocuments() to run in the
+	// background until the all documents have been processed
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	// use a separate goroutine to begin listening on the s.channelDocuments
+	// for documents to scan while allowing the scan to be interrupted via
+	// quit channel or context cancellation
+	go s.processDocuments(wg)
+	// while listening for documents to be created from the scan, start running
+	// the scan of the configured GitHub organization and/or git repositories;
+	//
+	// return a non-nil error if any part of the scan fails to run
+	if e = scan_tracker.Scan(); e != nil {
+		e = errors.Wrap(e, "error running scan tracker")
+		return
+	}
+	// wait for the wait group as done to allow this function to return
+	wg.Wait()
 	return
 }

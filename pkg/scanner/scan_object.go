@@ -3,7 +3,20 @@ package scanner
 import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/google/uuid"
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
+
+// ScanObjectInput struct provides the input parameters for creating a new
+// ScanObject instance. The struct is used to pass the input parameters to
+// the NewScanObject() function.
+type ScanObjectInput struct {
+	ChannelDocuments chan<- az.AsyncDocumentWrapper
+	ChannelQuit      <-chan error
+	ID               string
+	Name             string
+	ObjectType       string
+	URL              string
+}
 
 // ScanObject struct is the base struct for all types of scanned objects
 // and provides a common set of fields and methods for tracking the status
@@ -29,24 +42,28 @@ type ScanObject struct {
 	// The unique URL associated with the object.
 	URL string `json:"url"`
 
-	documents DocumentTrackerMap
+	documents        DocumentTrackerMap // TODO : remove this field and any associated methods
+	channelDocuments chan<- az.AsyncDocumentWrapper
+	channelQuit      <-chan error
 }
 
 // NewScanObject() function initializes a new ScanObject struct with
 // the provided name, type, and URL. Sets default values for the
 // Status of the ScanObject.
-func NewScanObject(id, name, object_type, url string) *ScanObject {
+func NewScanObject(in *ScanObjectInput) *ScanObject {
 	// create a random, unique ID if one is not provided
-	if id == "" {
-		id = uuid.New().String()
+	if in.ID == "" {
+		in.ID = uuid.New().String()
 	}
 	return &ScanObject{
-		ID:        id,
-		Name:      name,
-		Status:    NewStatus(),
-		Type:      object_type,
-		URL:       url,
-		documents: NewDocumentTrackerMap(),
+		ID:               in.ID,
+		Name:             in.Name,
+		Status:           NewStatus(),
+		Type:             in.ObjectType,
+		URL:              in.URL,
+		channelDocuments: in.ChannelDocuments,
+		channelQuit:      in.ChannelQuit,
+		documents:        NewDocumentTrackerMap(),
 	}
 }
 
@@ -103,15 +120,13 @@ type ScanObjectHashed struct {
 
 // NewScanObjectHashed() function initializes a new ScanObjectHashed struct
 // with the provided plumbing.Hash, name, type, and URL.
-func NewScanObjectHashed(hash plumbing.Hash, name, object_type, url string) *ScanObjectHashed {
+func NewScanObjectHashed(hash plumbing.Hash, in *ScanObjectInput) *ScanObjectHashed {
+	// override the object ID with the string representation of the hash
+	// to ensure consistency between the hash and the object ID
+	in.ID = hash.String()
 	return &ScanObjectHashed{
-		ScanObject: *NewScanObject(
-			hash.String(),
-			name,
-			object_type,
-			url,
-		),
-		hash: hash,
+		ScanObject: *NewScanObject(in),
+		hash:       hash,
 	}
 }
 

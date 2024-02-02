@@ -5,6 +5,7 @@ import "github.com/pkg/errors"
 var (
 	ErrDocumentResponseIsNil            = errors.New("DocumentResponse is nil")
 	ErrDocumentResponseMismatch         = errors.New("DocumentResponse mismatch")
+	ErrDocumentTrackerMapInputIsNil     = errors.New("DocumentTracker map input is nil")
 	ErrScanCommitFilesNotSet            = errors.New("ScanCommit files not set")
 	ErrScanCommitScanFileNotFound       = errors.New("ScanFile not found in ScanCommit")
 	ErrScanFileInputNil                 = errors.New("ScanFile input is nil")

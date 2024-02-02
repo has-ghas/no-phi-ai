@@ -19,6 +19,7 @@ const NOPHI_GH_V3APIURL string = "NOPHI_GH_V3APIURL"
 const NOPHI_GH_V4APIURL string = "NOPHI_GH_V4APIURL"
 const NOPHI_GH_WEBHOOK_SECRET = "NOPHI_GH_WEBHOOK_SECRET"
 const NOPHI_GIT_WORKDIR = "NOPHI_GIT_WORKDIR"
+const NOPHI_MAX_REQUESTS_OUTSTANDING = "NOPHI_MAX_REQUESTS_OUTSTANDING"
 const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
 const NOPHI_SERVER_PORT string = "NOPHI_SERVER_PORT"
 
@@ -37,6 +38,7 @@ func GetAppEnvVars() []string {
 		NOPHI_GH_V4APIURL,
 		NOPHI_GH_WEBHOOK_SECRET,
 		NOPHI_GIT_WORKDIR,
+		NOPHI_MAX_REQUESTS_OUTSTANDING,
 		NOPHI_SERVER_ADDRESS,
 		NOPHI_SERVER_PORT,
 	}
@@ -62,6 +64,12 @@ func (c *Config) envOverride() error {
 	}
 	if commandRun := os.Getenv(NOPHI_COMMAND_RUN); commandRun != "" {
 		c.Command.Run = commandRun
+	}
+	if maxRequestsOutstanding := os.Getenv(NOPHI_MAX_REQUESTS_OUTSTANDING); maxRequestsOutstanding != "" {
+		maxRequestsOutstandingInt, err := strconv.Atoi(maxRequestsOutstanding)
+		if err == nil {
+			c.Git.Scan.Limits.MaxRequestsOutstanding = maxRequestsOutstandingInt
+		}
 	}
 	if gitWorkDir := os.Getenv(NOPHI_GIT_WORKDIR); gitWorkDir != "" {
 		c.Git.WorkDir = gitWorkDir

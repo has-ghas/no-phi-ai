@@ -1,12 +1,11 @@
 package scanner
 
 import (
-	"fmt"
-
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/pkg/errors"
 
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
 )
 
@@ -21,18 +20,24 @@ type ScanRepository struct {
 }
 
 // NewScanRepository() function initializes a new ScanRepository object.
-func NewScanRepository(url string) (*ScanRepository, error) {
+func NewScanRepository(
+	url string,
+	channel_documents chan<- az.AsyncDocumentWrapper,
+	channel_quit <-chan error,
+) (*ScanRepository, error) {
 	name, err := nogit.ParseRepoNameFromURL(url)
 	if err != nil {
 		return nil, err
 	}
 	return &ScanRepository{
-		ScanObject: *NewScanObject(
-			"",
-			name,
-			ScanObjectTypeRepository,
-			url,
-		),
+		ScanObject: *NewScanObject(&ScanObjectInput{
+			ChannelDocuments: channel_documents,
+			ChannelQuit:      channel_quit,
+			ID:               "",
+			Name:             name,
+			ObjectType:       ScanObjectTypeRepository,
+			URL:              url,
+		}),
 		commits:    []*ScanCommit{},
 		repository: nil,
 	}, nil
@@ -95,8 +100,6 @@ func (sr *ScanRepository) Scan(gm *nogit.GitManager, commit_scan_func func(*obje
 
 // ScanForPHI() method runs the scan of the repository for any PHI/PII.
 func (sr *ScanRepository) ScanForPHI(gm *nogit.GitManager) error {
-	// TODO : remove TRACE
-	fmt.Println("TRACE : ScanRepository.ScanForPHI()")
 	return sr.Scan(gm, sr.scanCommitForPHI)
 }
 
@@ -121,8 +124,6 @@ func (sr *ScanRepository) clone(gm *nogit.GitManager) (e error) {
 // findScanCommit() method uses the provided object.Commit to find the
 // associated ScanCommit object in the ScanRepository.commits slice.
 func (sr *ScanRepository) findScanCommit(commit *object.Commit) (*ScanCommit, error) {
-	// TODO : remove TRACE
-	fmt.Println("TRACE : ScanRepository.findScanCommit()")
 	for _, sc := range sr.commits {
 		if sc.GetHash().String() == commit.ID().String() {
 			// return the pointer to the associated ScanCommit object if it
@@ -148,7 +149,7 @@ func (sr *ScanRepository) postScanCommit(scan_commit *ScanCommit) {
 // in the ScanRepository.
 func (sr *ScanRepository) preScanCommit(commit *object.Commit) *ScanCommit {
 	// create a new ScanCommit object from the input object.Commit
-	scan_commit := NewScanCommit(commit)
+	scan_commit := NewScanCommit(commit, sr.channelDocuments, sr.channelQuit)
 	// ensure the ScanCommit.Status reflects that the scan has completed
 	scan_commit.Status.SetCompleted()
 	// add the new ScanCommit object to the state of the ScanRepository
