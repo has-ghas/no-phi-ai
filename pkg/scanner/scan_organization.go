@@ -19,11 +19,16 @@ func NewScanOrganization(
 	channel_documents chan<- az.AsyncDocumentWrapper,
 	channel_quit <-chan error,
 ) (*ScanOrganization, error) {
+	if scannerContext == nil {
+		return nil, ErrScanOrganizationContextNil
+	}
+
 	// parse the name of the organization from the provided URL
 	org_name, err := nogit.ParseOrgNameFromURL(org_url)
 	if err != nil {
 		return nil, err
 	}
+
 	// initialize and return a new ScanOrganization object
 	return &ScanOrganization{
 		ScanObject: *NewScanObject(&ScanObjectInput{

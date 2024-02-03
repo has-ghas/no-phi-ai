@@ -1,10 +1,10 @@
 package scanner
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
@@ -51,6 +51,9 @@ type DocumentTracker struct {
 // response back to the source Path (e.g. of the file) and Offset
 // (e.g. starting character of the target text within the source file.
 func NewDocumentTracker(in *DocumentTrackerInput) (*DocumentTracker, error) {
+	if scannerContext == nil {
+		return nil, ErrDocumentTrackerContextNil
+	}
 	return &DocumentTracker{
 		ID:               in.ID,
 		Offset:           in.Offset,
@@ -92,9 +95,8 @@ func (dt *DocumentTracker) Scan() (e error) {
 		defer wg.Done()
 		select {
 		case response := <-dt.channelResponse:
-			// TODO : remove TRACE
-			fmt.Printf(
-				"TRACE : DocumentTracker.Scan() : received response : ID=%s\n",
+			log.Ctx(scannerContext).Trace().Msgf(
+				"document tracker channel received response ID=%s",
 				response.ID,
 			)
 			dt.SetResponse(&response)
@@ -103,23 +105,18 @@ func (dt *DocumentTracker) Scan() (e error) {
 				e = errors.Wrap(e, "document tracker received error from quit channel")
 				return
 			}
-			// TODO : remove TRACE
-			fmt.Printf(
-				"TRACE : DocumentTracker.Scan() : quit channel closed : ID=%s\n",
-				dt.ID,
-			)
+			log.Ctx(scannerContext).Trace().Msg("document tracker received interrup signal")
 			// return nil error if the quit channel is closed
 			return
 		}
 	}()
 	wg.Wait()
 	if e != nil {
+		e = errors.Wrap(e, "document tracker channel response error")
 		return
 	}
-
-	// TODO : remove TRACE
-	fmt.Printf(
-		"TRACE : DocumentTracker.Scan() : goroutine done : ID=%s : Offset=%d\n",
+	log.Ctx(scannerContext).Trace().Msgf(
+		"document tracker goroutine done : ID=%s : Offset=%d",
 		wrapper.Document.ID,
 		dt.Offset,
 	)

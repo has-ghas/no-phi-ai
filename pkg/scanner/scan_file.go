@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"bufio"
-	"fmt"
 
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/pkg/errors"
@@ -10,22 +9,28 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
 
-// ScanFile struct embeds the ScanObject struct and adds fields
-// and methods specific to scanning a GitHub organization.
+// ScanFile struct embeds the ScanObject struct and adds fields and
+// methods specific to scanning a GitHub organization.
 type ScanFile struct {
 	// embed the ScanObject struct, along with its fields and methods
 	ScanObjectHashed
 }
 
-// NewScanFile() function initializes a new ScanFile object using
-// the provided URL for the GitHub organization.
+// NewScanFile() function initializes a new ScanFile object using the
+// provided URL for the GitHub organization.
 func NewScanFile(
 	file *object.File,
 	channel_documents chan<- az.AsyncDocumentWrapper,
 	channel_quit <-chan error,
 ) (*ScanFile, error) {
+	if scannerContext == nil {
+		return nil, ErrScanFileContextNil
+	}
 	if file == nil {
 		return nil, ErrScanFileInputNil
+	}
+	if channel_documents == nil {
+		return nil, ErrScanFileChannelDocumentsNil
 	}
 	// initialize and return a new ScanFile object
 	return &ScanFile{
@@ -35,7 +40,7 @@ func NewScanFile(
 			ID:               file.ID().String(),
 			Name:             file.Name,
 			ObjectType:       ScanObjectTypeFile,
-			URL:              "", // TODO
+			URL:              "", // TODO : fix empty URL for ScanObject
 		}),
 	}, nil
 }
@@ -50,16 +55,6 @@ func (sf *ScanFile) Scan(file *object.File) (e error) {
 	if e = sf.generateDocuments(file); e != nil {
 		return
 	}
-
-	// batch the documents into groups of az.RequestDocumentLimit
-	// and create a new az.PiiEntityRecognitionRequest for each batch
-	// TODO
-
-	// submit the requests to the Azure AI Language service API
-	// TODO
-
-	// process the responses from the Azure AI Language service API
-	// TODO
 
 	return
 }
@@ -122,16 +117,6 @@ func (sf *ScanFile) makeDocumentTracker(offset int, text string) error {
 	// create a unique identifier for the document
 	id := MakeDocumentID(sf.GetHash(), offset, []byte(text))
 
-	// TODO : remove TRACE
-	fmt.Printf(
-		"TRACE : ScanFile.makeDocumentTracker() : hash=%s : path=%s : id=%s : offset=%d : text_length=%d\n",
-		sf.hash.String(),
-		sf.Name,
-		id,
-		offset,
-		len(text),
-	)
-
 	// create the az.Document object which is a required input for a new DocumentTracker
 	az_doc := az.NewDocument(id, text, "")
 
@@ -147,13 +132,14 @@ func (sf *ScanFile) makeDocumentTracker(offset int, text string) error {
 		return errors.Wrap(err, "failed to setup DocumentTracker for scan file")
 	}
 
-	// add the document_tracker object to the map of documents
-	// stored in the ScanFile object
+	// add the document_tracker object to the map of documents stored
+	// in the ScanFile object
 	if err := sf.documents.Set(document_tracker); err != nil {
 		return err
 	}
 
-	// use the document tracker to wrap and send the document to be scanned
+	// use the document tracker to wrap the document; use a separate
+	// goroutine for asynchronous scanning of PHI/PII entities
 	go document_tracker.Scan()
 
 	return nil

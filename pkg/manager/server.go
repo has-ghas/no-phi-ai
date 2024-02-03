@@ -75,15 +75,20 @@ func (m *Manager) runServer() error {
 	return m.server.ListenAndServe()
 }
 
+// setupEventDispatcher() function returns an http.Handler that can be used
+// as the event dispatcher for GitHub webhook events sent to the HTTP server;
+// returns a non-nil error if unable to setup the event dispatcher handler.
 func setupEventDispatcher(config *cfg.Config) (http.Handler, error) {
-
+	// create a common *gh.ClientManager, which can be used for interacting
+	// with the GitHub API via the go-github libarary
 	ghcm, err := gh.NewClientManager(config)
 	if err != nil {
 		return nil, err
 	}
 
-	// create a common *az.EntityDetectionAI, which can be used for
-	// detecting "entities" of interest via the Azure AI Language service
+	// create a common *az.EntityDetectionAI, which can be used for detecting
+	// "entities" of interest within text documents submitted to the the API
+	// for the Azure AI Language service
 	ai, ai_err := az.NewEntityDetectionAI(config)
 	if ai_err != nil {
 		return nil, ai_err

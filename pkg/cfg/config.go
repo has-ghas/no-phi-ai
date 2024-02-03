@@ -55,6 +55,9 @@ type AzureAIConfig struct {
 	// a detection result to be considered valid. This must be a value
 	// between 0 and 1.
 	ConfidenceThreshold float64 `yaml:"confidence_threshold" json:"confidence_threshold"`
+	// DryRun prevents the actual sending of requests to the AI Language
+	// service API when set to true. Default is false.
+	DryRun bool `yaml:"dry_run" json:"dry_run"`
 	// Service should be set to the URL of the AI Language service deployment.
 	Service string `yaml:"service" json:"service"`
 	// ShowStats controls whether the "showStats=true" query parameter will

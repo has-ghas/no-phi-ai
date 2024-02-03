@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
+
+	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 )
 
 // EntityDetectionAI struct provides methods for (1) sending requests to
@@ -19,6 +20,7 @@ import (
 type EntityDetectionAI struct {
 	client     *http.Client
 	confidence float64
+	dryRun     bool
 	endpoint   string
 	key        string
 }
@@ -46,20 +48,10 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 	return &EntityDetectionAI{
 		client:     &http.Client{},
 		confidence: c.AzureAI.ConfidenceThreshold,
+		dryRun:     c.AzureAI.DryRun,
 		endpoint:   endpoint,
 		key:        c.AzureAI.AuthKey,
 	}, nil
-}
-
-// AsyncDetectPiiEntities() method wraps the DetectPiiEntities() method
-// and sends the pass|fail (bool) result to a channel for asynchronous
-// processing.
-func (ai *EntityDetectionAI) AsyncDetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest, resultChan chan<- bool) {
-	detected, e := ai.DetectPiiEntities(ctx, requestData)
-	if e != nil {
-		log.Ctx(ctx).Error().Msgf("error detecting entities: %s", e)
-	}
-	resultChan <- detected
 }
 
 // DetectPiiEntities() method accepts a PiiEntityRecognitionRequest as
@@ -69,51 +61,13 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 	// explicitly set detected to false
 	detected = false
 
-	requestBytes, err := json.Marshal(*requestData)
-	if err != nil {
-		e = err
-		log.Ctx(ctx).Error().Msgf("error marshalling data for entity detection request: %s", e)
-		return
-	}
-	// TODO : remove debug logging of requestBytes
-	log.Ctx(ctx).Debug().Msgf("entity detection request JSON:\n%s", string(requestBytes))
-
-	req, err := http.NewRequest("POST", ai.endpoint, bytes.NewBuffer(requestBytes))
-	if err != nil {
-		e = err
-		log.Ctx(ctx).Error().Msgf("error creating entity detection request: %s", e)
+	entity_recognition_results, entity_recognition_err := ai.requestAiResponse(ctx, requestData)
+	if entity_recognition_err != nil {
+		e = errors.Wrap(entity_recognition_err, "error requesting AI API response")
 		return
 	}
 
-	// set the required headers for the HTTP request
-	ai.setHttpRequestHeaders(req)
-
-	resp, err := ai.client.Do(req)
-	if err != nil {
-		e = err
-		log.Ctx(ctx).Error().Msgf("error executing entity detection request: %s", e)
-		return
-	}
-	defer resp.Body.Close()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		e = err
-		log.Ctx(ctx).Error().Msgf("error reading entity detection response body: %s", e)
-		return
-	}
-	log.Ctx(ctx).Debug().Msgf("entity detection AI confidence threshold: %f", ai.confidence)
-	// TODO : remove debug logging of responseBody
-	log.Ctx(ctx).Debug().Msgf("entity detection response body:\n%s", string(responseBody))
-
-	var textResponse PiiEntityRecognitionResults
-	e = json.Unmarshal(responseBody, &textResponse)
-	if e != nil {
-		log.Ctx(ctx).Error().Msgf("error unmarshalling entity detection response body: %s", e)
-		return
-	}
-
-	for _, doc := range textResponse.Results.Documents {
+	for _, doc := range entity_recognition_results.Results.Documents {
 		var entities []Entity
 		for _, entity := range doc.Entities {
 			if entity.ConfidenceScore >= ai.confidence {
@@ -151,6 +105,72 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 // GetServiceEndpoint() method return the full URL of the service API endpoint
 func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
 	return ai.endpoint
+}
+
+// requestAiResponse() method converts a PiiEntityRecognitionRequest to a
+// JSON byte array and sends the request to the Azure AI Language service API,
+// then converts the JSON response from the API to PiiEntityRecognitionResults.
+// This method returns an error if the request or response fails.
+func (ai *EntityDetectionAI) requestAiResponse(ctx context.Context, entity_request *PiiEntityRecognitionRequest) (*PiiEntityRecognitionResults, error) {
+	var e error
+
+	// check for dry run mode
+	if ai.dryRun {
+		log.Ctx(ctx).Info().Msgf(
+			"dry run mode enabled : skipping entity recognition request for %d documents",
+			len(entity_request.AnalysisInput.Documents),
+		)
+		return nil, nil
+	}
+
+	entity_request_bytes, err := json.Marshal(entity_request)
+	if err != nil {
+		e = errors.Wrap(err, "failed to marshal PiiEntityRecognitionRequest")
+		return nil, e
+	}
+
+	http_request, err := http.NewRequestWithContext(ctx, "POST", ai.endpoint, bytes.NewBuffer(entity_request_bytes))
+	if err != nil {
+		e = errors.Wrap(err, "failed creating HTTP request to Azure AI Language service")
+		return nil, e
+	}
+
+	// set the required headers for the HTTP request before sending
+	ai.setHttpRequestHeaders(http_request)
+
+	log.Ctx(ctx).Trace().Msgf(
+		"requesting entity recognition for %d documents",
+		len(entity_request.AnalysisInput.Documents),
+	)
+
+	// send the HTTP request to the Azure AI Language service API
+	http_response, err := ai.client.Do(http_request)
+	if err != nil {
+		e = errors.Wrap(err, "failed sending HTTP request to Azure AI Language service")
+		return nil, e
+	}
+	defer http_response.Body.Close()
+
+	// read all bytes from the HTTP response body
+	http_response_body, err := io.ReadAll(http_response.Body)
+	if err != nil {
+		e = errors.Wrap(err, "failed reading HTTP response from Azure AI Language service")
+		return nil, e
+	}
+
+	var entity_recognition_results PiiEntityRecognitionResults
+	// unmarshal the bytes from the response body into a PiiEntityRecognitionResults
+	if e = json.Unmarshal(http_response_body, &entity_recognition_results); e != nil {
+		e = errors.Wrap(e, "failed unmarshalling response from Azure AI Language service")
+		return nil, e
+	}
+
+	log.Ctx(ctx).Trace().Msgf(
+		"received entity recognition results with %d document responses",
+		len(entity_recognition_results.Results.Documents),
+	)
+
+	return &entity_recognition_results, nil
 }
 
 // setHttpRequestHeaders() method sets the required headers for any HTTP

@@ -42,9 +42,9 @@ type ScanObject struct {
 	// The unique URL associated with the object.
 	URL string `json:"url"`
 
-	documents        DocumentTrackerMap // TODO : remove this field and any associated methods
 	channelDocuments chan<- az.AsyncDocumentWrapper
 	channelQuit      <-chan error
+	documents        DocumentTrackerMap // TODO : remove this field and any associated methods
 }
 
 // NewScanObject() function initializes a new ScanObject struct with

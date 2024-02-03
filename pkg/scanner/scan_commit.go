@@ -1,10 +1,10 @@
 package scanner
 
 import (
-	"fmt" // TODO : remove
-
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 )
@@ -25,7 +25,17 @@ func NewScanCommit(
 	commit *object.Commit,
 	channel_documents chan<- az.AsyncDocumentWrapper,
 	channel_quit <-chan error,
-) *ScanCommit {
+) (*ScanCommit, error) {
+	if scannerContext == nil {
+		return nil, ErrScanCommitContextNil
+	}
+	if commit == nil {
+		return nil, ErrScanCommitInputCommitNil
+	}
+	if channel_documents == nil {
+		return nil, ErrScanCommitChannelDocumentsNil
+	}
+
 	return &ScanCommit{
 		ScanObjectHashed: *NewScanObjectHashed(commit.ID(), &ScanObjectInput{
 			ChannelDocuments: channel_documents,
@@ -33,11 +43,11 @@ func NewScanCommit(
 			ID:               commit.ID().String(),
 			Name:             commit.ID().String(),
 			ObjectType:       ScanObjectTypeCommit,
-			URL:              "", // TODO
+			URL:              "", // TODO : fix empty URL for ScanObject
 		}),
 		commit: commit,
 		files:  []*ScanFile{},
-	}
+	}, nil
 }
 
 // GetHash() method returns the plumbing.Hash of this ScanCommit.
@@ -50,34 +60,6 @@ func (sc *ScanCommit) GetHash() plumbing.Hash {
 // with the ScanCommit.
 func (sc *ScanCommit) GetCommit() *object.Commit {
 	return sc.commit
-}
-
-// ScanFile() method scans the tree of objects (e.g. files) associated
-// with the commit, keeping track of the progress of the scan by updating
-// private fields of the ScanCommit.
-func (sc *ScanCommit) ScanFile(file *object.File) error {
-	var e error
-	var files_iterator *object.FileIter
-	// get an iterator for the files in the commit
-	files_iterator, e = sc.commit.Files()
-	if e != nil {
-		if files_iterator != nil {
-			files_iterator.Close()
-		}
-		return e
-	}
-	defer files_iterator.Close()
-
-	// iterate over the files in the commit, processing each file with the
-	// file_scan_func_wrapper() function, which contains the scan_file.Scan()
-	// function wrapped with code to track the progress of the file scan
-	e = files_iterator.ForEach(sc.scanFile)
-	if e != nil {
-		// return any error encountered while iterating over the files
-		return e
-	}
-
-	return e
 }
 
 // findScanFile() method uses the provided object.File to find the associated
@@ -105,6 +87,7 @@ func (sc *ScanCommit) postScanFile(file *object.File) error {
 	// the ScanCommit.files slice
 	scan_file, e = sc.findScanFile(file)
 	if e != nil {
+		e = errors.Wrap(e, "scan commit failed to find scan file for post-processing")
 		// return the error
 		return e
 	}
@@ -114,26 +97,6 @@ func (sc *ScanCommit) postScanFile(file *object.File) error {
 	scan_file.Status.SetCompleted()
 
 	return e
-}
-
-// shouldScanFile() method returns boolean false if the object.File should
-// not be added to the list of files to be scanned, and boolean true if
-// the object.File should be added to the list of files to be scanned.
-func (sc *ScanCommit) shouldScanFile(file *object.File) (should_scan bool) {
-	// assume that we probably should scan the file
-	should_scan = true
-
-	if file == nil {
-		should_scan = false
-		return
-	}
-
-	// ignore binary files as we are just scanning text for PHI/PII data
-	if file_is_binary, _ := file.IsBinary(); file_is_binary {
-		should_scan = false
-	}
-
-	return
 }
 
 // preScanFile() method creates a new ScanFile object from the input
@@ -159,7 +122,7 @@ func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
 func (sc *ScanCommit) scanFile(file *object.File) error {
 	// check if the file should be scanned
 	if !sc.shouldScanFile(file) {
-		fmt.Printf("TRACE : skipping scan of file %s\n", file.Name)
+		log.Ctx(scannerContext).Warn().Msgf("skipping scan of file %s\n", file.Name)
 		return nil
 	}
 
@@ -189,4 +152,24 @@ func (sc *ScanCommit) scanFile(file *object.File) error {
 	}
 
 	return nil
+}
+
+// shouldScanFile() method returns boolean false if the object.File should
+// not be added to the list of files to be scanned, and boolean true if
+// the object.File should be added to the list of files to be scanned.
+func (sc *ScanCommit) shouldScanFile(file *object.File) (should_scan bool) {
+	// assume that we probably should scan the file
+	should_scan = true
+
+	if file == nil {
+		should_scan = false
+		return
+	}
+
+	// ignore binary files as we are just scanning text for PHI/PII data
+	if file_is_binary, _ := file.IsBinary(); file_is_binary {
+		should_scan = false
+	}
+
+	return
 }

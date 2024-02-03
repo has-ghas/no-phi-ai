@@ -5,21 +5,6 @@ type AnalysisInput struct {
 	Documents []Document `json:"documents"`
 }
 
-type AsyncDocumentWrapper struct {
-	ChanQuit     chan error
-	ChanResponse chan<- DocumentResponse
-	Document     *Document
-}
-
-func NewAsyncDocumentWrapper(id, text, language string, response chan<- DocumentResponse) *AsyncDocumentWrapper {
-	document := NewDocument(id, text, language)
-	return &AsyncDocumentWrapper{
-		ChanQuit:     make(chan error),
-		ChanResponse: response,
-		Document:     &document,
-	}
-}
-
 // Document struct defines the structure of a document to be analyzed by the
 // Azure AI Language service, where the ID is the only mechanism for tracking
 // the response for a specific document and where the text is limited to

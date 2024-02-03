@@ -7,9 +7,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Use constant strings to declare the environment variable names used by the app.
 const NOPHI_APP_LOG_LEVEL string = "NOPHI_APP_LOG_LEVEL"
 const NOPHI_APP_MODE string = "NOPHI_APP_MODE"
 const NOPHI_APP_NAME string = "NOPHI_APP_NAME"
+const NOPHI_AZURE_AI_AUTH_KEY string = "NOPHI_AZURE_AI_AUTH_KEY"
+const NOPHI_AZURE_AI_DRY_RUN string = "NOPHI_AZURE_AI_DRY_RUN"
+const NOPHI_AZURE_AI_SERVICE string = "NOPHI_AZURE_AI_SERVICE"
 const NOPHI_AZURE_AI_SHOW_STATS string = "NOPHI_AZURE_AI_SHOW_STATS"
 const NOPHI_COMMAND_RUN = "NOPHI_COMMAND_RUN"
 const NOPHI_CONFIG_PATH string = "NOPHI_CONFIG_PATH"
@@ -29,6 +33,9 @@ func GetAppEnvVars() []string {
 		NOPHI_APP_LOG_LEVEL,
 		NOPHI_APP_MODE,
 		NOPHI_APP_NAME,
+		NOPHI_AZURE_AI_AUTH_KEY,
+		NOPHI_AZURE_AI_DRY_RUN,
+		NOPHI_AZURE_AI_SERVICE,
 		NOPHI_AZURE_AI_SHOW_STATS,
 		NOPHI_COMMAND_RUN,
 		NOPHI_CONFIG_PATH,
@@ -52,15 +59,28 @@ func (c *Config) envOverride() error {
 	if name := os.Getenv(NOPHI_APP_NAME); name != "" {
 		c.App.Name = name
 	}
+	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
+		c.App.Log.Level = logLevel
+	}
+	if azAuthKey := os.Getenv(NOPHI_AZURE_AI_AUTH_KEY); azAuthKey != "" {
+		c.AzureAI.AuthKey = azAuthKey
+	}
+	if azDryRun := os.Getenv(NOPHI_AZURE_AI_DRY_RUN); azDryRun != "" {
+		azDryRunBool, err := strconv.ParseBool(azDryRun)
+		if err != nil {
+			return errors.Wrap(err, "failed parsing NOPHI_AZURE_AI_DRY_RUN env var")
+		}
+		c.AzureAI.DryRun = azDryRunBool
+	}
+	if azService := os.Getenv(NOPHI_AZURE_AI_SERVICE); azService != "" {
+		c.AzureAI.Service = azService
+	}
 	if azShowStats := os.Getenv(NOPHI_AZURE_AI_SHOW_STATS); azShowStats != "" {
 		azShowStatsBool, err := strconv.ParseBool(azShowStats)
 		if err != nil {
 			return errors.Wrap(err, "failed parsing NOPHI_AZURE_AI_SHOW_STATS env var")
 		}
 		c.AzureAI.ShowStats = azShowStatsBool
-	}
-	if logLevel := os.Getenv(NOPHI_APP_LOG_LEVEL); logLevel != "" {
-		c.App.Log.Level = logLevel
 	}
 	if commandRun := os.Getenv(NOPHI_COMMAND_RUN); commandRun != "" {
 		c.Command.Run = commandRun
