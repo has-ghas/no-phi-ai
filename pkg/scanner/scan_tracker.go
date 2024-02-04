@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
@@ -81,29 +82,30 @@ func NewScanTracker(
 }
 
 // Scan() method runs the scan of the organization and/or repositories.
-func (st *ScanTracker) Scan() (e error) {
-	log.Ctx(scannerContext).Debug().Msg("starting ScanTracker scan")
+func (st *ScanTracker) Scan(wg *sync.WaitGroup, ctx context.Context, err_chan chan<- error) {
+	defer wg.Done()
+	log.Ctx(ctx).Debug().Msg("starting ScanTracker scan")
 	// clone the repositories first in order to minimize the number of API
 	// calls to GitHub and/or the time wasted via network latency.
-	if e = st.scanRepositories(); e != nil {
-		return
+	if e := st.scanRepositories(); e != nil {
+		// send the error to the error channel
+		err_chan <- errors.Wrap(e, "error scanning repositories")
 	}
 	log.Ctx(scannerContext).Debug().Msg("finished ScanTracker scan")
-	return
 }
 
 // Track() method tracks the progress of the scan until it is complete,
 // or until the scan is interrupted via context cancellation / timeout.
 func (st *ScanTracker) Track(wg *sync.WaitGroup, ctx context.Context, err_chan chan<- error) {
 	defer wg.Done()
-	log.Ctx(ctx).Trace().Msg("starting ScanTracker track")
+	log.Ctx(ctx).Debug().Msg("starting ScanTracker track")
 
 	// TODO : implement the Track() method
 
 	// wait for a signal from context cancellation
 	<-ctx.Done()
 
-	log.Ctx(ctx).Trace().Msg("finished ScanTracker track")
+	log.Ctx(ctx).Debug().Msg("finished ScanTracker track")
 }
 
 // scanRepositories() method clones each repository in ScanTracker.repositories

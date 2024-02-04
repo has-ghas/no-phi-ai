@@ -12,9 +12,8 @@ import (
 // documents to be scanned, batching them into groups of up to RequestDocumentLimit
 // size before sending them to the Azure AI Language service for detection of
 // PHI/PII entities in the ducument text.
-func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Context, documentsChan <-chan AsyncDocumentWrapper, quitChan <-chan error) {
+func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Context, documentsChan <-chan AsyncDocumentWrapper, errChan chan<- error) {
 	defer wg.Done()
-
 	// count the number of documents received
 	var doc_count int32
 	// create a new map of documents for each request
@@ -24,10 +23,7 @@ func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Conte
 		// select from the channels
 		select {
 		case <-ctx.Done():
-			log.Ctx(ctx).Warn().Msg("context done")
-			return
-		case <-quitChan:
-			log.Ctx(ctx).Warn().Msg("quit signal received")
+			log.Ctx(ctx).Warn().Msg("aync detection : context done")
 			return
 		case wrapper := <-documentsChan:
 			// increment the count of documents received
@@ -41,6 +37,8 @@ func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Conte
 				// request to the Azure AI Language service API
 				if err := ai.asyncDetectPiiEntities(ctx, doc_map); err != nil {
 					log.Ctx(ctx).Error().Err(err).Msg("failed to send PiiEntityRecognitionRequest")
+					// send the error to the error channel
+					errChan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
 				}
 				// create a new map of documents for the next request
 				doc_map = NewAsyncDocumentWrapperMap()
@@ -63,6 +61,8 @@ func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Conte
 				// request to the Azure AI Language service API
 				if err := ai.asyncDetectPiiEntities(ctx, doc_map); err != nil {
 					log.Ctx(ctx).Error().Err(err).Msg("failed to send PiiEntityRecognitionRequest")
+					// send the error to the error channel
+					errChan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
 				}
 				// create a new map of documents for the next request
 				doc_map = NewAsyncDocumentWrapperMap()
