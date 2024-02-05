@@ -1,14 +1,32 @@
 package manager
 
 import (
+	"github.com/pkg/errors"
+
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner"
 )
 
-func (m *Manager) initCLI() {
-	// initialize the Scanner for use by the Manager in the running of CLI commands
-	// that involve scanning git repos.
-	m.scanner = scanner.NewScanner(&m.config.Git, m.ctx, m.logger)
+// initCLI() method is used to initialize clients used by the Manager in the
+// running of CLI commands
+func (m *Manager) initCLI() (e error) {
+	switch m.config.Command.Run {
+	case cfg.CommandRunHelp:
+		// no clients to initialize for the help command
+		return
+	case cfg.CommandRunVersion:
+		// no clients to initialize for the version command
+		return
+	default:
+		// initialize the Scanner for use by the Manager in the running of CLI
+		// commands that involve scanning git repos.
+		m.scanner, e = scanner.NewScanner(m.config, m.ctx, m.logger)
+		if e != nil {
+			e = errors.Wrap(e, "failed to initialize new Scanner for CLI")
+			return
+		}
+		return
+	}
 }
 
 // runCLI() method is used to run the command specified in m.config.Command.Run var.

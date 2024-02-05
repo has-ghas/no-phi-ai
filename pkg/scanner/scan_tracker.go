@@ -2,10 +2,11 @@ package scanner
 
 import (
 	"context"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
@@ -17,10 +18,8 @@ type ScanTracker struct {
 	ID string `json:"id"`
 
 	commits      []*ScanObject
-	ctx          context.Context
 	files        []*ScanObject
 	git          *nogit.GitManager
-	logger       *zerolog.Logger
 	organization *ScanOrganization
 	repositories []*ScanRepository
 }
@@ -29,16 +28,20 @@ type ScanTracker struct {
 // use in runnging a scan of git repositories while tracking the progress
 // of different aspects of the scan.
 func NewScanTracker(
-	ctx context.Context,
 	gitManager *nogit.GitManager,
-	logger *zerolog.Logger,
 	org_URL string,
 	repo_URLs []string,
 	channel_documents chan<- az.AsyncDocumentWrapper,
 	channel_quit <-chan error,
 ) (*ScanTracker, error) {
+	if scannerContext == nil {
+		return nil, ErrScanTrackerContextNil
+	}
+	if channel_documents == nil {
+		return nil, ErrScanTrackerChannelDocumentsNil
+	}
 	if gitManager == nil {
-		return nil, errors.New("failed to create scan tracker : gitManager cannot be nil")
+		return nil, ErrScanTrackerGitManagerNil
 	}
 
 	// create a ScanObject for the organization, if provided
@@ -71,61 +74,48 @@ func NewScanTracker(
 	return &ScanTracker{
 		ID:           uuid.NewString(),
 		commits:      []*ScanObject{},
-		ctx:          ctx,
 		files:        []*ScanObject{},
 		git:          gitManager,
-		logger:       logger,
 		organization: org_object,
 		repositories: repo_objects,
 	}, nil
 }
 
 // Scan() method runs the scan of the organization and/or repositories.
-func (st *ScanTracker) Scan() (e error) {
-	if e = st.preScan(); e != nil {
-		return
-	}
-	// TODO : remove debug logging
-	st.logger.Debug().Ctx(st.ctx).Msg("started ScanTracker.Scan()")
+func (st *ScanTracker) Scan(wg *sync.WaitGroup, ctx context.Context, err_chan chan<- error) {
+	defer wg.Done()
+	log.Ctx(ctx).Debug().Msg("starting ScanTracker scan")
 	// clone the repositories first in order to minimize the number of API
 	// calls to GitHub and/or the time wasted via network latency.
-	if e = st.scanRepositories(); e != nil {
-		return
+	if e := st.scanRepositories(); e != nil {
+		// send the error to the error channel
+		err_chan <- errors.Wrap(e, "error scanning repositories")
 	}
-	// TODO : remove debug logging
-	st.logger.Debug().Ctx(st.ctx).Msg("finished ScanTracker.Scan()")
-
-	// TODO ; do more stuff after cloning the repositories
-
-	return
+	log.Ctx(scannerContext).Debug().Msg("finished ScanTracker scan")
 }
 
-// preScan() method performs some basic checks to ensure that the ScanTracker
-// object is ready to run a scan (and will not panic due to nil pointers).
-func (st *ScanTracker) preScan() (e error) {
-	if st.ctx == nil {
-		e = errors.New("scan tracker failed to run scan : context cannot be nil")
-		return
-	}
-	if st.git == nil {
-		e = errors.New("scan tracker failed to run scan : gitManager cannot be nil")
-		return
-	}
-	if st.logger == nil {
-		e = errors.New("scan tracker failed to run scan : logger cannot be nil")
-		return
-	}
+// Track() method tracks the progress of the scan until it is complete,
+// or until the scan is interrupted via context cancellation / timeout.
+func (st *ScanTracker) Track(wg *sync.WaitGroup, ctx context.Context, err_chan chan<- error) {
+	defer wg.Done()
+	log.Ctx(ctx).Debug().Msg("starting ScanTracker track")
 
-	return
+	// TODO : implement the Track() method
+
+	// wait for a signal from context cancellation
+	<-ctx.Done()
+
+	log.Ctx(ctx).Debug().Msg("finished ScanTracker track")
 }
 
 // scanRepositories() method clones each repository in ScanTracker.repositories
 // into a temporary directory. Returns a non-nil error if any part of the cloning
 // process fails.
 func (st *ScanTracker) scanRepositories() (e error) {
-	// clone each repository into a temporary directory
+	// scan each repository in series
+	// TODO : allow for scanning repositories in parallel
 	for _, scan_repo := range st.repositories {
-		// clone the repository store its pointer in the ScanRepository object
+		// scan the repository for PHI/PII data
 		if e = scan_repo.ScanForPHI(st.git); e != nil {
 			return
 		}

@@ -15,6 +15,8 @@ type ClientManager struct {
 	githubapp.ClientCreator
 }
 
+// NewClientManager() function initializes a new ClientManager object
+// using the provided config.
 func NewClientManager(config *cfg.Config) (*ClientManager, error) {
 	// TODO : do something more with the metrics registry
 	metricsRegistry := metrics.DefaultRegistry

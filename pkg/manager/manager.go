@@ -62,7 +62,9 @@ func (m *Manager) Init() {
 	m.logger.Trace().Msg("initializing Manager")
 	switch m.GetAppMode() {
 	case cfg.AppModeCLI:
-		m.initCLI()
+		if err := m.initCLI(); err != nil {
+			m.logger.Fatal().Err(err).Msgf("error initializing in '%s' mode", m.GetAppMode())
+		}
 		return
 	case cfg.AppModeServer:
 		m.initServer()

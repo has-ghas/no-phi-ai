@@ -12,17 +12,18 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// GitManager struct provides a management wrapper for interactin
-// with raw git repositories using the go-git library. Provides
-// methods for cloning a repository and scanning for PHI/PII by
-// recursively walking the repository's file tree.
+// GitManager struct provides a management wrapper for interacting with raw
+// git repositories using the go-git library. Provides methods for cloning a
+// repository and scanning for PHI/PII by recursively walking the
+// repository's file tree.
 type GitManager struct {
 	config *cfg.GitConfig
 	ctx    context.Context
 	logger *zerolog.Logger
 }
 
-// NewGitManager returns a new GitManager instance.
+// NewGitManager returns a new GitManager instance for cloning, scanning, and
+// other interactions with git repositories.
 func NewGitManager(config *cfg.GitConfig, ctx context.Context, logger *zerolog.Logger) *GitManager {
 	return &GitManager{
 		config: config,
@@ -31,8 +32,8 @@ func NewGitManager(config *cfg.GitConfig, ctx context.Context, logger *zerolog.L
 	}
 }
 
-// CloneRepo() method clones the repository specified by the repo_url to
-// a subdirectory of the configured gm.config.WorkDir.
+// CloneRepo() method clones the repository specified by the repo_url to a
+// subdirectory of the configured gm.config.WorkDir.
 func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 
 	var key_err error
@@ -68,6 +69,13 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 	return repo, nil
 }
 
+// GetContext() method returns the context.Context associated with the GitManager.
+func (gm *GitManager) GetContext() context.Context {
+	return gm.ctx
+}
+
+// getAuthMethod() method returns the appropriate transport.AuthMethod for the
+// given repo_url based on the configuration provided to the GitManager.
 func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, error) {
 	// use the provided config values to determine which auth method to use
 	//
@@ -83,6 +91,8 @@ func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, erro
 	}
 }
 
+// getAuthMethodPublicKey() method returns a transport.AuthMethod using the
+// configured, local SSH key for authentication via git protocol over SSH.
 func (gm *GitManager) getAuthMethodPublicKey() (*ssh.PublicKeys, error) {
 	var publicKey *ssh.PublicKeys
 	sshPath := gm.config.Auth.SSHKeyPath
