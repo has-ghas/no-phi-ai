@@ -122,7 +122,6 @@ func (sf *ScanFile) makeDocumentTracker(offset int, text string) error {
 
 	document_tracker, err := NewDocumentTracker(&DocumentTrackerInput{
 		ChannelDocuments: sf.channelDocuments,
-		ChannelQuit:      sf.channelQuit,
 		Document:         &az_doc,
 		ID:               az_doc.ID,
 		Offset:           offset,

@@ -94,7 +94,7 @@ func (sc *ScanCommit) postScanFile(file *object.File) error {
 
 	// update the scan_file.Status in order to track the successful
 	// completion of the scan for that file
-	scan_file.Status.SetCompleted()
+	scan_file.Status.SetCompleted(ResultCleanCode, "")
 
 	return e
 }
@@ -108,7 +108,7 @@ func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
 		return nil, err
 	}
 	// ensure the ScanFile.Status reflects that the scan has started
-	scan_file.Status.SetStarted()
+	scan_file.Status.SetStarted("")
 	// add the new ScanFile object to the state of the ScanCommit
 	sc.files = append(sc.files, scan_file)
 

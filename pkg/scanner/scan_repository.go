@@ -66,7 +66,7 @@ func (sr *ScanRepository) GetRepository() *git.Repository {
 // progress of the scan by updating private fields of the ScanRepository.
 func (sr *ScanRepository) Scan(gm *nogit.GitManager, commit_scan_func func(*object.Commit) error) (e error) {
 	// ensure the ScanRepository.Status reflects that the scan has started
-	sr.Status.SetStarted()
+	sr.Status.SetStarted("")
 
 	// ensure the repository has been cloned locally and its object is
 	// referenced by the ScanRepository.repository field
@@ -110,7 +110,7 @@ func (sr *ScanRepository) Scan(gm *nogit.GitManager, commit_scan_func func(*obje
 	}
 
 	// ensure the ScanRepository.Status reflects that the scan has completed
-	sr.Status.SetCompleted()
+	sr.Status.SetCompleted(ResultCleanCode, "")
 
 	return
 }
@@ -158,7 +158,7 @@ func (sr *ScanRepository) findScanCommit(commit *object.Commit) (*ScanCommit, er
 func (sr *ScanRepository) postScanCommit(scan_commit *ScanCommit) {
 	// update the scan_commit.Status in order to track the successful
 	// completion of the scan for that commit
-	scan_commit.Status.SetCompleted()
+	scan_commit.Status.SetCompleted(ResultCleanCode, "")
 }
 
 // preScanCommit() method creates a new ScanCommit object from the
@@ -171,7 +171,7 @@ func (sr *ScanRepository) preScanCommit(commit *object.Commit) (*ScanCommit, err
 		return nil, errors.Wrap(err, "scan repository failed to create new scan commit")
 	}
 	// ensure the ScanCommit.Status reflects that the scan has started
-	scan_commit.Status.SetStarted()
+	scan_commit.Status.SetStarted("")
 	// add the new ScanCommit object to the state of the ScanRepository
 	sr.commits = append(sr.commits, scan_commit)
 

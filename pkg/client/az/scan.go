@@ -3,6 +3,7 @@ package az
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
@@ -94,11 +95,13 @@ func (ai *EntityDetectionAI) asyncDetectPiiEntities(ctx context.Context, doc_map
 		return
 	}
 
+	timestamp_request := time.Now().Unix()
 	// send the request to the Azure AI Language service API and wait for the response
 	ai_response, err := ai.requestAiResponse(ctx, ai_request)
 	if err != nil {
 		e = errors.Wrap(err, "failed async detection of entitites")
 	}
+	timestamp_response := time.Now().Unix()
 
 	// check for nil response, which is only expected in dry run mode
 	if ai_response == nil {
@@ -112,20 +115,25 @@ func (ai *EntityDetectionAI) asyncDetectPiiEntities(ctx context.Context, doc_map
 	}
 
 	// map each DocumentResponse back to its AsyncDocumentWrapper
-	for _, doc := range ai_response.Results.Documents {
-		doc_wrapper, ok := doc_map.get(doc.ID)
+	for _, document_response := range ai_response.Results.Documents {
+		document_wrapper, ok := doc_map.get(document_response.ID)
 		if !ok {
 			log.Ctx(ctx).Warn().Msgf(
 				"failed to map DocumentResponse to AsyncDocumentWrapper : ID = %s",
-				doc.ID,
+				document_response.ID,
 			)
 			continue
 		}
-		// send the DocumentResponse to its response channel
-		if doc_send_err := doc_wrapper.sendResponse(ctx, doc); doc_send_err != nil {
+		// create a new AsyncDocumentResponseWrapper for the DocumentResponse
+		document_response_wrapper := NewAsyncDocumentResponseWrapper(&document_response)
+		// set the RequestedAt and ReceivedAt timestamps in the response wrapper
+		document_response_wrapper.SetRequested(timestamp_request)
+		document_response_wrapper.SetResponded(timestamp_response)
+		// send the AsyncDocumentResponseWrapper to its response channel
+		if doc_send_err := document_wrapper.sendResponse(ctx, document_response_wrapper); doc_send_err != nil {
 			log.Ctx(ctx).Warn().Msgf(
 				"failed to send DocumentResponse to channel : ID = %s : ERROR = %s",
-				doc.ID,
+				document_response.ID,
 				doc_send_err.Error(),
 			)
 			continue
