@@ -142,6 +142,11 @@ func (m AsyncDocumentWrapperMap) get(id string) (wrapper *AsyncDocumentWrapper, 
 	return
 }
 
+// isEmpty() method returns true if the map is empty, otherwise false.
+func (m AsyncDocumentWrapperMap) isEmpty() bool {
+	return m.length() == 0
+}
+
 // isFull() method returns true if the map is full, otherwise false. The map
 // is considered full if the number of documents in the map is equal or
 // greater than the RequestDocumentLimit.

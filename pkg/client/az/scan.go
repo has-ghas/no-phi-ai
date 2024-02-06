@@ -2,31 +2,46 @@ package az
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 )
 
-// ScanDocuments() method listens on the provided documentsChan channel for new
-// documents to be scanned, batching them into groups of up to RequestDocumentLimit
-// size before sending them to the Azure AI Language service for detection of
-// PHI/PII entities in the ducument text.
-func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Context, documentsChan <-chan AsyncDocumentWrapper, errChan chan<- error) {
-	defer wg.Done()
+// receiveDocuments() method receives documents from the documents channel
+// and sends them to the Azure AI Language service for entity detection;
+// sends any errors to the error channel; returns when the context is done
+// or the documents channel is closed.
+func (ai *EntityDetectionAI) receiveDocuments(
+	ctx context.Context,
+	documents_chan <-chan AsyncDocumentWrapper,
+	err_chan chan<- error,
+) {
+	log.Ctx(ctx).Debug().Msg("starting document receiver")
+	defer log.Ctx(ctx).Debug().Msg("finished document receiver")
 	// count the number of documents received
 	var doc_count int32
 	// create a new map of documents for each request
 	doc_map := NewAsyncDocumentWrapperMap()
 
 	for {
-		// select from the channels
 		select {
 		case <-ctx.Done():
-			log.Ctx(ctx).Warn().Msg("aync detection : context done")
 			return
-		case wrapper := <-documentsChan:
+		case wrapper, ok := <-documents_chan:
+			if !ok || wrapper.Document == nil {
+				// create and send a new PiiEntityRecognitionRequest for
+				// any remaining documents in the map
+				if !doc_map.isEmpty() {
+					log.Ctx(ctx).Debug().Msg("documents receiver sending final request for remaining documents")
+					if err := ai.asyncDetectPiiEntities(ctx, doc_map); err != nil {
+						log.Ctx(ctx).Error().Err(err).Msg("failed to send PiiEntityRecognitionRequest")
+						err_chan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
+					}
+				}
+				log.Ctx(ctx).Debug().Msg("closing documents receiver")
+				return
+			}
 			// increment the count of documents received
 			doc_count++
 
@@ -39,7 +54,7 @@ func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Conte
 				if err := ai.asyncDetectPiiEntities(ctx, doc_map); err != nil {
 					log.Ctx(ctx).Error().Err(err).Msg("failed to send PiiEntityRecognitionRequest")
 					// send the error to the error channel
-					errChan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
+					err_chan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
 				}
 				// create a new map of documents for the next request
 				doc_map = NewAsyncDocumentWrapperMap()
@@ -63,12 +78,46 @@ func (ai *EntityDetectionAI) ScanDocuments(wg *sync.WaitGroup, ctx context.Conte
 				if err := ai.asyncDetectPiiEntities(ctx, doc_map); err != nil {
 					log.Ctx(ctx).Error().Err(err).Msg("failed to send PiiEntityRecognitionRequest")
 					// send the error to the error channel
-					errChan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
+					err_chan <- errors.Wrap(err, "failed to send PiiEntityRecognitionRequest")
 				}
 				// create a new map of documents for the next request
 				doc_map = NewAsyncDocumentWrapperMap()
 			}
 			log.Ctx(ctx).Trace().Msgf("finished document %d : ID = %s", doc_count, wrapper.Document.ID)
+		}
+	}
+}
+
+// ScanReceiver() method listens on the provided documents_chan channel for new
+// documents to be scanned, batching them into groups of up to RequestDocumentLimit
+// size before sending them to the Azure AI Language service for detection of
+// PHI/PII entities in the ducument text.
+func (ai *EntityDetectionAI) ScanReceiver(
+	ctx context.Context,
+	documents_chan <-chan AsyncDocumentWrapper,
+	quit_chan <-chan bool,
+	err_chan chan<- error,
+	done_chan chan<- bool,
+) {
+	log.Ctx(ctx).Debug().Msg("started scanning for documents to process")
+	defer log.Ctx(ctx).Debug().Msg("finished scanning for documents to process")
+	defer close(done_chan)
+
+	receiver_chan := make(chan AsyncDocumentWrapper)
+	defer close(receiver_chan)
+	go ai.receiveDocuments(ctx, receiver_chan, err_chan)
+
+	for {
+		// select from the channels
+		select {
+		case <-ctx.Done():
+			return
+		case <-quit_chan:
+			log.Ctx(ctx).Debug().Msg("scan receiver quit channel closed")
+			return
+		case wrapper := <-documents_chan:
+			// send the document wrapper to the receiver channel
+			receiver_chan <- wrapper
 		}
 	}
 }

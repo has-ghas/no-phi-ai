@@ -116,7 +116,7 @@ func (ai *EntityDetectionAI) requestAiResponse(ctx context.Context, entity_reque
 
 	// check for dry run mode
 	if ai.dryRun {
-		log.Ctx(ctx).Info().Msgf(
+		log.Ctx(ctx).Warn().Msgf(
 			"dry run mode enabled : skipping entity recognition request for %d documents",
 			len(entity_request.AnalysisInput.Documents),
 		)

@@ -62,6 +62,12 @@ func (sc *ScanCommit) GetCommit() *object.Commit {
 	return sc.commit
 }
 
+// GetFiles() method returns the slice of ScanFile object pointers currently
+// associated with the ScanCommit.
+func (sc *ScanCommit) GetFiles() []*ScanFile {
+	return sc.files
+}
+
 // findScanFile() method uses the provided object.File to find the associated
 // ScanFile object in the ScanCommit.files slice.
 func (sc *ScanCommit) findScanFile(file *object.File) (*ScanFile, error) {
@@ -75,6 +81,25 @@ func (sc *ScanCommit) findScanFile(file *object.File) (*ScanFile, error) {
 	}
 
 	return nil, ErrScanCommitScanFileNotFound
+}
+
+// ignoreScanFile() method returns boolean true if the object.File should
+// not be added to the list of files to be scanned, and boolean false if the
+// object.File should be added to (i.e. should not be ignored from) the list
+// of files to be scanned.
+func (sc *ScanCommit) ignoreScanFile(file *object.File) (ignore bool, reason string) {
+	// explicitly set defaults for return values
+	ignore = false
+	reason = ""
+
+	// ignore binary files as we are just scanning text for PHI/PII data
+	if file_is_binary, _ := file.IsBinary(); file_is_binary {
+		ignore = true
+		reason = IgnoreReasonFileIsBinary
+	}
+
+	// ignore files with names that match an entry in the ignore map
+	return IgnoreFilePath(file.Name)
 }
 
 // postScanFile() method updates the Status of the ScanFile object stored
@@ -102,13 +127,27 @@ func (sc *ScanCommit) postScanFile(file *object.File) error {
 // preScanFile() method creates a new ScanFile object from the input
 // object.File and adds it to the list of files tracked in the ScanCommit.
 func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
+	if file == nil {
+		return nil, ErrScanCommitFileNil
+	}
+
 	// create a new ScanFile object from the input object.File
 	scan_file, err := NewScanFile(file, sc.channelDocuments, sc.channelQuit)
 	if err != nil {
 		return nil, err
 	}
-	// ensure the ScanFile.Status reflects that the scan has started
-	scan_file.Status.SetStarted("")
+
+	// check if the file should be marked as ignored by the scan
+	if ignore, reason := sc.ignoreScanFile(file); ignore {
+		// update the Status of the ScanFile to reflect that the file
+		// has been ignored by the scan, which helps in tracking the
+		// progress of the scan
+		scan_file.Status.SetIgnored(reason)
+	} else {
+		// ensure the ScanFile.Status reflects that the scan has started
+		scan_file.Status.SetStarted("")
+	}
+
 	// add the new ScanFile object to the state of the ScanCommit
 	sc.files = append(sc.files, scan_file)
 
@@ -120,18 +159,22 @@ func (sc *ScanCommit) preScanFile(file *object.File) (*ScanFile, error) {
 // (PHI/PII) entity detection documents from the file, and updating the
 // status of the ScanFile object to reflect the results of the scan.
 func (sc *ScanCommit) scanFile(file *object.File) error {
-	// check if the file should be scanned
-	if !sc.shouldScanFile(file) {
-		log.Ctx(scannerContext).Warn().Msgf("skipping scan of file %s\n", file.Name)
-		return nil
-	}
-
 	// perform pre-scan processing of the object.File in order to track
 	// a new ScanFile object and associate it with this ScanCommit
 	scan_file, pre_scan_err := sc.preScanFile(file)
 	if pre_scan_err != nil {
 		// return the error
 		return pre_scan_err
+	}
+
+	if scan_file.Status.IsIgnored() {
+		log.Ctx(scannerContext).Warn().Msgf(
+			"scan file ignored : path = %s : reason = %s",
+			scan_file.Name,
+			scan_file.Status.StateMessage,
+		)
+		// return early if the file is ignored
+		return nil
 	}
 
 	// run the scan_file.scan() method and process any error
@@ -152,24 +195,4 @@ func (sc *ScanCommit) scanFile(file *object.File) error {
 	}
 
 	return nil
-}
-
-// shouldScanFile() method returns boolean false if the object.File should
-// not be added to the list of files to be scanned, and boolean true if
-// the object.File should be added to the list of files to be scanned.
-func (sc *ScanCommit) shouldScanFile(file *object.File) (should_scan bool) {
-	// assume that we probably should scan the file
-	should_scan = true
-
-	if file == nil {
-		should_scan = false
-		return
-	}
-
-	// ignore binary files as we are just scanning text for PHI/PII data
-	if file_is_binary, _ := file.IsBinary(); file_is_binary {
-		should_scan = false
-	}
-
-	return
 }
