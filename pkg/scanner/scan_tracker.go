@@ -238,22 +238,35 @@ func (st *ScanTracker) updateScanMetrics(ctx context.Context) (e error) {
 				}
 
 				// iterate through the documents created from the file
-				for _, doc := range docs_map {
+				for _, document_tracker := range docs_map {
 					scan_metrics.Documents.Status.Initialized++
-					if doc.Status.IsCompleted() {
+					if document_tracker.Status.IsCompleted() {
 						scan_metrics.Documents.Status.Completed++
 					}
-					if doc.Status.IsRequested() {
+					if document_tracker.Status.IsRequested() {
 						scan_metrics.Documents.Status.Requested++
 					}
-					if doc.Status.IsResponded() {
+					if document_tracker.Status.IsResponded() {
 						scan_metrics.Documents.Status.Responded++
 					}
-					if doc.Status.IsErrored() {
+					if document_tracker.Status.IsErrored() {
 						scan_metrics.Documents.Status.Errored++
 					}
-					if doc.Status.IsStarted() {
+					if document_tracker.Status.IsStarted() {
 						scan_metrics.Documents.Status.Started++
+					}
+					// process document results
+					if document_tracker.Status.IsResultClean() {
+						scan_metrics.Documents.Results.Clean++
+					}
+					if document_tracker.Status.IsResultDirty() {
+						scan_metrics.Documents.Results.Dirty++
+					}
+					if document_tracker.Status.IsResultError() {
+						scan_metrics.Documents.Results.Error++
+					}
+					if document_tracker.Status.IsResultUnknown() {
+						scan_metrics.Documents.Results.Unknown++
 					}
 				}
 			}

@@ -144,23 +144,43 @@ func (dt *DocumentTracker) SetResponse(response_wrapper *az.AsyncDocumentRespons
 	)
 	// store the response for the document being tracked
 	dt.response = response
-	// set the requested status of the document tracker using the
-	// RequestedAt timestamp set in the response wrapper
+	// set the requested status of the document tracker using the RequestedAt
+	// timestamp from the response wrapper
 	dt.Status.SetRequested(response_wrapper.RequestedAt, "")
-	// set the responded status of the document tracker using the
-	// RespondedAt timestamp set in the response wrapper
+	// set the responded status of the document tracker using the RespondedAt
+	// timestamp from the response wrapper
 	dt.Status.SetResponded(response_wrapper.RespondedAt, "")
-	// process the response before setting the completed result status
-	// set the completed status of the document tracker
-	// TODO : replace 0 with result from processing
+	// process the response before setting the completed status, result code,
+	// and result message within the status object of the document tracker
 	dt.Status.SetCompleted(dt.processResponseResult(response), "")
+
 	return
 }
 
-// TODO
+// processResponseResult() method processes the response for the document being
+// tracked and returns a result code based on the response.
 func (dt *DocumentTracker) processResponseResult(response *az.DocumentResponse) (result int) {
-	result = ResultInitCode // TODO
-	// TODO : process the response result
+	// set the default result
+	result = ResultInitCode
+	if response == nil {
+		return
+	}
+
+	// process the document responses from the server
+	if response.ID != dt.ID {
+		// result is "error" if the response ID does not match the document ID
+		result = ResultErrorCode
+	} else if response.IsDirty() {
+		// result is "dirty" if the response contains any entities
+		result = ResultDirtyCode
+	} else {
+		// result is "clean" if the response is valid and contains no entities
+		result = ResultCleanCode
+	}
+
+	// process the statistics from the document response
+	// TODO
+
 	return
 }
 

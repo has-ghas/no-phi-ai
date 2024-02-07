@@ -37,6 +37,34 @@ func NewStatus() *Status {
 	}
 }
 
+// IsResultClean() method returns true if the result of the scan for the
+// associated object has been marked as clean, meaning that the object's
+// text has been scanned for PHI/PII "entities" and _NONE_ were found.
+func (s *Status) IsResultClean() bool {
+	return s.ResultCode == ResultCleanCode
+}
+
+// IsResultDirty() method returns true if the result of the scan for the
+// associated object has been marked as dirty, meaning that the object's
+// text has been scanned for PHI/PII "entities" and _SOME_ were found.
+func (s *Status) IsResultDirty() bool {
+	return s.ResultCode == ResultDirtyCode
+}
+
+// IsResultError() method returns true if the result of the scan for the
+// associated object has been marked as dirty, meaning that the object's
+// text was scanned but an error was encountered in the request/response
+func (s *Status) IsResultError() bool {
+	return s.ResultCode == ResultErrorCode
+}
+
+// IsResultUnknown() method returns true if the result of the scan for
+// the associated object has been marked as unknown, which is the
+// default/init value for the result code.
+func (s *Status) IsResultUnknown() bool {
+	return s.ResultCode == ResultInitCode
+}
+
 // IsCompleted() method returns true if the status of the scan for the
 // associated object has been marked as completed, meaning that the
 // object has been scanned along with its chidlren and/or text.
