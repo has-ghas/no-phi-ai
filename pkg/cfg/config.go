@@ -119,8 +119,8 @@ type GitHubConfig struct {
 	// IntegrationID, WebhookSecret, and PrivateKey.
 	App struct {
 		IntegrationID int64  `yaml:"integration_id" json:"integrationId"`
-		WebhookSecret string `yaml:"webhook_secret" json:"webhookSecret"`
 		PrivateKey    string `yaml:"private_key" json:"privateKey"`
+		WebhookSecret string `yaml:"webhook_secret" json:"webhookSecret"`
 	} `yaml:"app" json:"app"`
 	// OAuth (and other) configurations are not currently required / used in
 	//  the app, but are required for conversion to a githubapp.Config struct.
@@ -158,16 +158,28 @@ func (c *GitHubConfig) GetGitHubAppConfig() *githubapp.Config {
 // GitScanConfig struct contains the configuration used to setup a PHI scan
 // for some organization and/or set of repositories.
 type GitScanConfig struct {
+	// Extensions is a list of file extensions to include in the scan, where
+	// each entry is a string in the format ".<ext>". If this list empty,
+	// then the DefaultScanFileExtensions list will be used.
+	Extensions []string `yaml:"extensions" json:"extensions"`
+
+	// IgnoreExtensions is a list of file extensions to exclude/ignore from
+	// the scan, where each entry is a string in the format ".<ext>".
+	IgnoreExtensions []string `yaml:"ignore_extensions" json:"ignore_extensions"`
+
 	// IgnoreRepositories is a list of GitHub repositories to exclude/ignore
 	// from the scan, where each entry is a string in the format "<org>/<repo>"
 	// or "<user>/<repo>". Values in this list take precedence over values in
 	// the Repositories list.
 	IgnoreRepositories []string `yaml:"ignore_repositories" json:"ignore_repositories"`
+
 	// Limits config
 	Limits GitScanLimitsConfig `yaml:"limits" json:"limits"`
+
 	// Organization is the URL of the GitHub organization to scan, where the
 	// app will query the GitHub API for a list of repositories to scan.
 	Organization string `yaml:"organization" json:"organization"`
+
 	// Repositories is a list of GitHub repositories to scan, where each entry
 	// is a string in the format "<org>/<repo>" or "<user>/<repo>".
 	//
@@ -200,6 +212,19 @@ type Config struct {
 	Server  ServerConfig  `yaml:"server" json:"server"`
 }
 
+// NewDefaultConfig() function returns a new Config object with default values
+// set for optional fields. The returned config can be used as a basis for some
+// customer configuration that actually works, where the default values are not
+// enough to provide required information for some app commands / functions.
+func NewDefaultConfig() *Config {
+	// create an empty config
+	config := &Config{}
+	// set default values for optional config fields
+	config.defaultConfig()
+
+	return config
+}
+
 // default() method sets default values for optional config fields.
 func (c *Config) defaultConfig() {
 	// set defaults for optional c.App config values
@@ -221,6 +246,9 @@ func (c *Config) defaultConfig() {
 	c.AzureAI.ShowStats = DefaultAzureAIShowStats
 	if c.Command.Run == "" {
 		c.Command.Run = DefaultCommandRun
+	}
+	if len(c.Git.Scan.Extensions) == 0 {
+		c.Git.Scan.Extensions = DefaultScanFileExtensions
 	}
 	if c.Git.Scan.Limits.MaxRequestsOutstanding == 0 {
 		c.Git.Scan.Limits.MaxRequestsOutstanding = DefaultMaxRequestsOutstanding

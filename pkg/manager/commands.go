@@ -1,8 +1,9 @@
 package manager
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/pkg/errors"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 )
@@ -24,7 +25,11 @@ func (m *Manager) commandHelp() (e error) {
 	)
 	printNameAndDescription(
 		cfg.CommandRunScanRepos,
-		"... not yet implemented ...",
+		"... work in progress ...",
+	)
+	printNameAndDescription(
+		cfg.CommandRunScanTest,
+		"... work in progress ...",
 	)
 	printNameAndDescription(
 		cfg.CommandRunVersion,
@@ -63,11 +68,38 @@ func (m *Manager) commandScanRepos() (e error) {
 	return
 }
 
+// commandScanTest() method is used to run the "scan-test" command, which is
+// for development use only.
+func (m *Manager) commandScanTest() (e error) {
+
+	if len(m.config.Git.Scan.Repositories) == 0 {
+		e = errors.New("no repositories specified for scan")
+		return
+	}
+
+	err_chan := make(chan error)
+	go m.scanner_v2.Run(err_chan)
+
+	// wait for an error to be returned from the scanner
+	e = <-err_chan
+	if e != nil {
+		e = errors.Wrapf(e, "failed to run command '%s' ", m.config.Command.Run)
+		return
+	}
+	m.logger.Info().Msgf("command '%s' completed successfully", m.config.Command.Run)
+
+	return
+}
+
+// commandVersion() method is used to run the "version" command, which prints
+// the version information for the app and then exits.
 func (m *Manager) commandVersion() (e error) {
 	fmt.Printf("%s %s\n", m.config.App.Name, cfg.AppVersion)
 	return
 }
 
+// printNameAndDescription() helper function is used to print the name and (optional)
+// description of something, such as a command or environment variable, to stdout.
 func printNameAndDescription(name string, description string) {
 	if description != "" {
 		fmt.Printf("\t\t- %s : %s\n", name, description)

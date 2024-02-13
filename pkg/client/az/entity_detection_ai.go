@@ -23,6 +23,7 @@ type EntityDetectionAI struct {
 	dryRun     bool
 	endpoint   string
 	key        string
+	metrics    *ScanReceiverMetrics
 }
 
 // NewEntityDetectionAI() function requires the Azure service host and
@@ -51,6 +52,7 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 		dryRun:     c.AzureAI.DryRun,
 		endpoint:   endpoint,
 		key:        c.AzureAI.AuthKey,
+		metrics:    NewScanReceiverMetrics(),
 	}, nil
 }
 
@@ -107,6 +109,30 @@ func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
 	return ai.endpoint
 }
 
+func (ai *EntityDetectionAI) dryRunRespond(ctx context.Context, entity_request *PiiEntityRecognitionRequest) (*PiiEntityRecognitionResults, error) {
+	// create a fake response for dry run mode
+	fake_response := &PiiEntityRecognitionResults{
+		Results: Results{
+			Documents: make([]DocumentResponse, 0),
+		},
+	}
+
+	for _, doc := range entity_request.AnalysisInput.Documents {
+		fake_response.Results.Documents = append(fake_response.Results.Documents, DocumentResponse{
+			ID:       doc.ID,
+			Entities: make([]Entity, 0),
+		})
+
+	}
+
+	log.Ctx(ctx).Trace().Msgf(
+		"sending DRY RUN MODE response for %d documents",
+		len(fake_response.Results.Documents),
+	)
+
+	return fake_response, nil
+}
+
 // requestAiResponse() method converts a PiiEntityRecognitionRequest to a
 // JSON byte array and sends the request to the Azure AI Language service API,
 // then converts the JSON response from the API to PiiEntityRecognitionResults.
@@ -116,11 +142,7 @@ func (ai *EntityDetectionAI) requestAiResponse(ctx context.Context, entity_reque
 
 	// check for dry run mode
 	if ai.dryRun {
-		log.Ctx(ctx).Warn().Msgf(
-			"dry run mode enabled : skipping entity recognition request for %d documents",
-			len(entity_request.AnalysisInput.Documents),
-		)
-		return nil, nil
+		return ai.dryRunRespond(ctx, entity_request)
 	}
 
 	entity_request_bytes, err := json.Marshal(entity_request)

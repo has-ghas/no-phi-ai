@@ -96,6 +96,14 @@ func (sc *ScanCommit) ignoreScanFile(file *object.File) (ignore bool, reason str
 	if file_is_binary, _ := file.IsBinary(); file_is_binary {
 		ignore = true
 		reason = IgnoreReasonFileIsBinary
+		return
+	}
+
+	// ignore files with zero size
+	if file.Size == 0 {
+		ignore = true
+		reason = IgnoreReasonFileIsEmpty
+		return
 	}
 
 	// ignore files with names that match an entry in the ignore map
@@ -168,7 +176,7 @@ func (sc *ScanCommit) scanFile(file *object.File) error {
 	}
 
 	if scan_file.Status.IsIgnored() {
-		log.Ctx(scannerContext).Warn().Msgf(
+		log.Ctx(scannerContext).Trace().Msgf(
 			"scan file ignored : path = %s : reason = %s",
 			scan_file.Name,
 			scan_file.Status.StateMessage,

@@ -37,6 +37,45 @@ func NewStatus() *Status {
 	}
 }
 
+// IsCompleted() method returns true if the status of the scan for the
+// associated object has been marked as completed, meaning that the
+// object has been scanned along with its chidlren and/or text.
+func (s *Status) IsCompleted() bool {
+	return s.CompletedAt > 0
+}
+
+// IsCompleted() method returns true if the status of the scan for the
+// associated object has been marked as errored, meaning that some
+// error was encountered while attempting to scan of the associated
+// object.
+func (s *Status) IsErrored() bool {
+	return s.Code == StatusErrorCode && s.ErroredAt > 0
+}
+
+// IsIgnored() method returns true if the status of the scan for the
+// associated object has been marked as ignored, meaning that the
+// object's text will not be scanned but the object will still be
+// tracked (as ignored) in the scan results.
+func (s *Status) IsIgnored() bool {
+	return s.Code == StatusIgnoredCode && s.IgnoredAt > 0
+}
+
+// IsRequested() method returns true if the status of the scan for the
+// associated object has been marked as requested, meaning that a
+// request has been sent to an external service scan the text of the
+// object.
+func (s *Status) IsRequested() bool {
+	return s.RequestedAt > 0
+}
+
+// IsResponded() method returns true if the status of the scan for the
+// associated object has been marked as responded, meaning that an
+// external service responded to our request to scan the text of the
+// object.
+func (s *Status) IsResponded() bool {
+	return s.RespondedAt > 0
+}
+
 // IsResultClean() method returns true if the result of the scan for the
 // associated object has been marked as clean, meaning that the object's
 // text has been scanned for PHI/PII "entities" and _NONE_ were found.
@@ -65,50 +104,11 @@ func (s *Status) IsResultUnknown() bool {
 	return s.ResultCode == ResultInitCode
 }
 
-// IsCompleted() method returns true if the status of the scan for the
-// associated object has been marked as completed, meaning that the
-// object has been scanned along with its chidlren and/or text.
-func (s *Status) IsCompleted() bool {
-	return s.Code == StatusCompleteCode && s.CompletedAt > 0
-}
-
-// IsCompleted() method returns true if the status of the scan for the
-// associated object has been marked as errored, meaning that some
-// error was encountered while attempting to scan of the associated
-// object.
-func (s *Status) IsErrored() bool {
-	return s.Code == StatusErrorCode && s.ErroredAt > 0
-}
-
-// IsIgnored() method returns true if the status of the scan for the
-// associated object has been marked as ignored, meaning that the
-// object's text will not be scanned but the object will still be
-// tracked (as ignored) in the scan results.
-func (s *Status) IsIgnored() bool {
-	return s.Code == StatusIgnoredCode && s.IgnoredAt > 0
-}
-
-// IsRequested() method returns true if the status of the scan for the
-// associated object has been marked as requested, meaning that a
-// request has been sent to an external service scan the text of the
-// object.
-func (s *Status) IsRequested() bool {
-	return s.Code == StatusProcessingRequestCode && s.RequestedAt > 0
-}
-
-// IsResponded() method returns true if the status of the scan for the
-// associated object has been marked as responded, meaning that an
-// external service responded to our request to scan the text of the
-// object.
-func (s *Status) IsResponded() bool {
-	return s.Code == StatusProcessingResponseCode && s.RespondedAt > 0
-}
-
 // IsStarted() method returns true if the status of the scan for the
 // associated object has been marked as started, meaning that the
 // object was not ignored and the scan process has begun.
 func (s *Status) IsStarted() bool {
-	return s.Code == StatusStartCode && s.StartedAt > 0
+	return s.StartedAt > 0
 }
 
 // SetCompleted() method sets the appropriate fields to indicate that
@@ -141,10 +141,11 @@ func (s *Status) SetErrored(err_msg string) {
 // at which the object was ignored and an optional state message to
 // explain why the object was ignored.
 func (s *Status) SetIgnored(state_msg string) {
+	now := time.Now().Unix()
 	s.Code = StatusIgnoredCode
-	s.CompletedAt = 0
+	s.CompletedAt = now
 	s.ErroredAt = 0
-	s.IgnoredAt = time.Now().Unix()
+	s.IgnoredAt = now
 	s.State = StatusIgnoredState
 	if state_msg != "" {
 		s.StateMessage = state_msg

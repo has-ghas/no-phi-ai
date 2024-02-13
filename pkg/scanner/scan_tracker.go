@@ -117,6 +117,15 @@ func (st *ScanTracker) Track(
 	log.Ctx(ctx).Debug().Msg("starting ScanTracker track")
 	defer log.Ctx(ctx).Debug().Msg("finished ScanTracker track")
 
+	// wait a second before before tracking anything
+	time.Sleep(1 * time.Second)
+
+	// process scan metrics one time before starting the tracking loop
+	if err := st.updateScanMetrics(ctx); err != nil {
+		// send the error to the error channel
+		err_chan <- errors.Wrap(err, "error updating scan metrics")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -261,6 +270,13 @@ func (st *ScanTracker) updateScanMetrics(ctx context.Context) (e error) {
 					}
 					if document_tracker.Status.IsResultDirty() {
 						scan_metrics.Documents.Results.Dirty++
+						// TODO : remove logging of dirty documents
+						log.Ctx(ctx).Debug().Msgf(
+							"dirty document found in file = %s : document ID = %s : response = %+v",
+							file.Name,
+							document_tracker.ID,
+							document_tracker.GetResponse(),
+						)
 					}
 					if document_tracker.Status.IsResultError() {
 						scan_metrics.Documents.Results.Error++

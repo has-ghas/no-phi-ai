@@ -1,18 +1,10 @@
 _app_name=no-phi-ai
 _app_pkg_dir=pkg
 _build_dir=build
-_build_mode=pie
-_build_packages="./${_app_pkg_dir}/..."
 _coverage_out_file=coverage.out
 
 _cmd_docker_build=DOCKER_BUILDKIT=1 docker build --ssh default
-_cmd_go_build=go build -buildmode="${_build_mode}" -o ../${_build_dir}/${_app_name}
 _cmd_go_cover=go tool cover -func=${_coverage_out_file}
-_cmd_go_fmt=go fmt ${_build_packages}
-_cmd_go_tidy=go mod tidy
-_cmd_go_test=go test -buildmode="${_build_mode}" -cover -coverprofile ${_coverage_out_file} -v -timeout=30s
-_cmd_go_vendor=go mod vendor
-_cmd_test=$$(go list ${_build_packages} | grep -v 'vendor')
 
 _msg="${_app_name} : make"
 _msg_error="ERROR : ${_msg}"
@@ -25,48 +17,44 @@ default: build
 build: build_prep build_only
 
 build_only:
-	cd ${_app_pkg_dir} && ${_cmd_go_build} \
-		&& echo "${_msg_success} build_only" \
-		|| (echo "${_msg_error} build_only" && exit 70)
+	./scripts/make.build_only.sh
 
 build_prep: format tidy test
 
-clean:
+clean: clean_test
 	rm -rf ./${_build_dir}/${_app_name} ./vendor/ Gopkg.lock ${_coverage_out_file}
 
+clean_and_build: clean build
+
+clean_test:
+	go clean -testcache
+
 format:
-	${_cmd_go_fmt} \
-		&& echo "${_msg_success} format" \
-		|| (echo "${_msg_error} format" && exit 40)
+	./scripts/make.format.sh
 
 image: image_mini
 
 image_full:
-	${_cmd_docker_build} --tag ${_app_name}-full --target full . \
-		&& echo "${_msg_success} image_full" \
-		|| (echo "${_msg_error} image_full" && exit 80)
+	./scripts/make.image.sh "full"
 
 image_mini:
-	${_cmd_docker_build} --tag ${_app_name} --target mini . \
-		&& echo "${_msg_success} image_mini" \
-		|| (echo "${_msg_error} image_mini" && exit 85)
+	./scripts/make.image.sh
 
 test:
-	echo $(_cmd_test) | xargs ${_cmd_go_test} \
-		&& echo "${_msg_success} test" \
-		|| (echo "${_msg_error} test" && exit 60)
+	./scripts/make.test.sh
 
 test_build: tidy build_only test
 
-test_cover: test
+test_cover: build_only
 	${_cmd_go_cover}
 
+test_full: clean_test test_verbose test_cover
+
+test_verbose:
+	./scripts/make.test.sh --verbose
+
 tidy:
-	${_cmd_go_tidy} \
-		&& echo "${_msg_success} tidy" \
-		|| (echo "${_msg_error} tidy" && exit 50)
+	./scripts/make.tidy.sh
 
 vendor:
-	${_cmd_go_vendor} \
-		&& echo "${_msg_success} vendor" \
-		|| (echo "${_msg_error} vendor" && exit 20)
+	./scripts/make.vendor.sh

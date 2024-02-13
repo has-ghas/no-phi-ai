@@ -110,19 +110,18 @@ func (sf *ScanFile) generateDocuments(file *object.File) (e error) {
 	return
 }
 
-// makeDocumentTracker() method uses the context of the ScanFile object
-// along with the provided offset and text to create a new DocumentTracker
-// for the text.
+// makeDocumentTracker() method uses the context of the ScanFile object along with
+// the provided offset and text to create a new DocumentTracker for the text.
 func (sf *ScanFile) makeDocumentTracker(offset int, text string) error {
-	// create a unique identifier for the document
+	// create a unique identifier for the document location within the source file
 	id := MakeDocumentID(sf.GetHash(), offset, []byte(text))
 
-	// create the az.Document object which is a required input for a new DocumentTracker
+	// create the az.Document object to be scanned as part of a larger request
+	// to the Azure AI Language service API
 	az_doc := az.NewDocument(id, text, "")
 
 	document_tracker, err := NewDocumentTracker(&DocumentTrackerInput{
 		ChannelDocuments: sf.channelDocuments,
-		Document:         &az_doc,
 		ID:               az_doc.ID,
 		Offset:           offset,
 		Path:             sf.Name,
@@ -137,9 +136,8 @@ func (sf *ScanFile) makeDocumentTracker(offset int, text string) error {
 		return err
 	}
 
-	// use the document tracker to wrap the document; use a separate
-	// goroutine for asynchronous scanning of PHI/PII entities
-	go document_tracker.Scan()
+	// use the document tracker to wrap and send the document (request)
+	go document_tracker.Scan(&az_doc)
 
 	return nil
 }
