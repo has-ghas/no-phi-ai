@@ -19,8 +19,8 @@ func KeyCodeToState(code int) string {
 		return KeyStateInit
 	case KeyCodeError:
 		return KeyStateError
-	case KeyCodeWarning:
-		return KeyStateWarning
+	case KeyCodePending:
+		return KeyStatePending
 	default:
 		return KeyStateInit
 	}
@@ -41,11 +41,11 @@ func KeyCodeValidate(code int) error {
 type KeyData struct {
 	// Code is used to represent the state of the object as an integer,
 	// where the value is expected to increase from KeyCodeInit to one
-	// of KeyCodeError, KeyCodeWarning, or KeyCodeComplete.
+	// of KeyCodeError, KeyCodePending, or KeyCodeComplete.
 	Code int `json:"code"`
 	// Message is an optional string message that can be used to provide
 	// additional context about the state of the object. If the Code is
-	// KeyCodeError or KeyCodeWarning, then the Message should be set.
+	// KeyCodeError or KeyCodePending, then the Message should be set.
 	Message string `json:"message"`
 	// State is a string representation of the Code and is automatically
 	// set based on the value of Code.
@@ -84,7 +84,7 @@ type KeyDataCounts struct {
 	Error    int `json:"error"`
 	Ignore   int `json:"ignore"`
 	Init     int `json:"init"`
-	Warning  int `json:"warning"`
+	Pending  int `json:"pending"`
 }
 
 // NewKeyDataCounts() function initializes a new KeyDataCounts struct
@@ -95,7 +95,7 @@ func NewKeyDataCounts() KeyDataCounts {
 		Error:    0,
 		Ignore:   0,
 		Init:     0,
-		Warning:  0,
+		Pending:  0,
 	}
 }
 
@@ -188,8 +188,8 @@ func (kt *KeyTracker) GetCounts() KeyDataCounts {
 			counts.Ignore++
 		case KeyCodeInit:
 			counts.Init++
-		case KeyCodeWarning:
-			counts.Warning++
+		case KeyCodePending:
+			counts.Pending++
 		}
 	}
 
@@ -244,7 +244,7 @@ func (kt *KeyTracker) PrintCounts() KeyDataCounts {
 		counts.Init,
 		counts.Error,
 		counts.Ignore,
-		counts.Warning,
+		counts.Pending,
 		counts.Complete,
 	)
 	return counts

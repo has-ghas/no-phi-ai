@@ -192,9 +192,6 @@ func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
 		}
 	}
 
-	// check if any of the commit's files reported any warnings
-	// TODO
-
 	_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeComplete, "")
 	if err != nil {
 		return errors.Wrapf(err, err_msg, commit.Hash.String())

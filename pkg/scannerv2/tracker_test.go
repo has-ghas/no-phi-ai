@@ -14,7 +14,7 @@ var (
 	test_message_ignore   = "test message ignore"
 	test_message_init     = "test message init"
 	test_message_error    = "test message error"
-	test_message_warning  = "test message warning"
+	test_message_pending  = "test message pending"
 )
 
 // TestKeyCodeToState() unit test function is used to test the KeyCodeToState()
@@ -47,9 +47,9 @@ func TestKeyCodeToState(t *testing.T) {
 			name:     "KeyCodeError",
 		},
 		{
-			code:     KeyCodeWarning,
-			expected: KeyStateWarning,
-			name:     "KeyCodeWarning",
+			code:     KeyCodePending,
+			expected: KeyStatePending,
+			name:     "KeyCodePending",
 		},
 		{
 			code:     123, // Replace with your custom code value
@@ -90,9 +90,9 @@ func TestKeyCodeValidate(t *testing.T) {
 			name:     "KeyCodeIgnore",
 		},
 		{
-			code:     KeyCodeWarning,
+			code:     KeyCodePending,
 			expected: nil,
-			name:     "KeyCodeWarning",
+			name:     "KeyCodePending",
 		},
 		{
 			code:     KeyCodeComplete,
@@ -175,15 +175,15 @@ func TestNewKeyData(t *testing.T) {
 			name:             "ValidCodeIgnore",
 		},
 		{
-			code: KeyCodeWarning,
+			code: KeyCodePending,
 			expected_data: KeyData{
-				Code:  KeyCodeWarning,
-				State: KeyStateWarning,
+				Code:  KeyCodePending,
+				State: KeyStatePending,
 			},
 			expected_err:     nil,
-			expected_message: test_message_warning,
-			message:          test_message_warning,
-			name:             "ValidCodeWarning",
+			expected_message: test_message_pending,
+			message:          test_message_pending,
+			name:             "ValidCodePending",
 		},
 		{
 			code: KeyCodeComplete,
@@ -246,7 +246,7 @@ func TestNewKeyDataCounts(t *testing.T) {
 		Error:    0,
 		Ignore:   0,
 		Init:     0,
-		Warning:  0,
+		Pending:  0,
 	}
 
 	counts := NewKeyDataCounts()
@@ -418,7 +418,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     1,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -436,7 +436,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     1,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -454,7 +454,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -472,7 +472,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -490,7 +490,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    1,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -508,7 +508,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    1,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeDocument,
@@ -529,7 +529,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 					key:   "C",
 				},
 				{
-					codes: []int{KeyCodeInit, KeyCodeWarning, KeyCodeError},
+					codes: []int{KeyCodeInit, KeyCodePending, KeyCodeError},
 					key:   "D",
 				},
 				{
@@ -542,7 +542,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    1,
 				Ignore:   1,
 				Init:     1,
-				Warning:  1,
+				Pending:  1,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeDocument,
@@ -559,7 +559,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 						KeyCodeInit,
 						KeyCodeError,
 						KeyCodeIgnore,
-						KeyCodeWarning,
+						KeyCodePending,
 						KeyCodeComplete,
 					},
 					key: "B",
@@ -570,7 +570,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeFile,
@@ -585,7 +585,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				{
 					codes: []int{
 						KeyCodeComplete,
-						KeyCodeWarning,
+						KeyCodePending,
 						KeyCodeIgnore,
 						KeyCodeError,
 						KeyCodeInit,
@@ -598,7 +598,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -624,7 +624,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 						KeyCodeInit,
 						KeyCodeError,
 						KeyCodeIgnore,
-						KeyCodeWarning,
+						KeyCodePending,
 						KeyCodeComplete,
 						KeyCodeInit,
 						KeyCodeInit,
@@ -638,7 +638,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Error:    0,
 				Ignore:   0,
 				Init:     0,
-				Warning:  0,
+				Pending:  0,
 			},
 			final_err: nil,
 			kind:      ScanObjectTypeCommit,
@@ -820,7 +820,7 @@ func TestKeyTracker_PrintCounts(t *testing.T) {
 		Error:    1,
 		Ignore:   0,
 		Init:     1,
-		Warning:  0,
+		Pending:  0,
 	}
 
 	// call the PrintCounts() methodV
@@ -936,9 +936,9 @@ func TestKeyTracker_Update(t *testing.T) {
 					message:     test_message_ignore,
 				},
 				{
-					code:        KeyCodeWarning,
-					expect_code: KeyCodeWarning,
-					message:     test_message_warning,
+					code:        KeyCodePending,
+					expect_code: KeyCodePending,
+					message:     test_message_pending,
 				},
 				{
 					code:        KeyCodeComplete,
@@ -963,9 +963,9 @@ func TestKeyTracker_Update(t *testing.T) {
 					message:     test_message_complete,
 				},
 				{
-					code:        KeyCodeWarning,
+					code:        KeyCodePending,
 					expect_code: KeyCodeComplete,
-					message:     test_message_warning,
+					message:     test_message_pending,
 				},
 				{
 					code:        KeyCodeIgnore,
