@@ -21,7 +21,7 @@ build_container: vendor build_only
 build_only:
 	./scripts/make.build_only.sh
 
-build_prep: format tidy test
+build_prep: clean format tidy test
 
 clean: clean_test
 	rm -rf ./${_build_dir}/${_app_name} ./vendor/ Gopkg.lock ${_coverage_out_file}
