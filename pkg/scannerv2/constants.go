@@ -1,13 +1,28 @@
-package scanner
+package scannerv2
 
 const DelimitDocumentID string = "__"
 
+const IgnoreReasonDefault string = "ignored_by_default"
 const IgnoreReasonDirPath string = "directory_path"
-const IgnoreReasonFileExtension string = "file_extension"
+const IgnoreReasonFileExtensionIgnoredByConfig string = "file_extension_ignored_by_config"
+const IgnoreReasonFileExtensionIgnoredByPolicy string = "file_extension_ignored_by_policy"
+const IgnoreReasonFileExtensionNotIncluded string = "file_extension_not_included"
 const IgnoreReasonFileIsBinary string = "file_is_binary"
 const IgnoreReasonFileIsEmpty string = "file_is_empty"
 const IgnoreReasonFileName string = "file_name"
 const IgnoreReasonFilePath string = "file_path"
+
+const KeyCodeComplete = 2
+const KeyCodeIgnore = 0
+const KeyCodeInit = -2
+const KeyCodeError = -1
+const KeyCodeWarning = 1
+
+const KeyStateComplete = "complete"
+const KeyStateIgnore = "ignore"
+const KeyStateInit = "init"
+const KeyStateError = "error"
+const KeyStateWarning = "warning"
 
 const ResultCleanCode int = 200
 const ResultCleanMsg string = "clean"

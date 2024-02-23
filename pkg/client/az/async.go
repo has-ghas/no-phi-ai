@@ -135,11 +135,24 @@ func (m AsyncDocumentWrapperMap) add(wrapper *AsyncDocumentWrapper) (valid, adde
 	return
 }
 
+func (m AsyncDocumentWrapperMap) deepCopy() AsyncDocumentWrapperMap {
+	copy := NewAsyncDocumentWrapperMap()
+	for id, wrapper := range m {
+		copy[id] = wrapper
+	}
+	return copy
+}
+
 // get() method returns the wrapper for the provided ID if it exists in the
 // map and boolean true, otherwise it returns nil and boolean false.
 func (m AsyncDocumentWrapperMap) get(id string) (wrapper *AsyncDocumentWrapper, exists bool) {
 	wrapper, exists = m[id]
 	return
+}
+
+// isEmpty() method returns true if the map is empty, otherwise false.
+func (m AsyncDocumentWrapperMap) isEmpty() bool {
+	return m.length() == 0
 }
 
 // isFull() method returns true if the map is full, otherwise false. The map

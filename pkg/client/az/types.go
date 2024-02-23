@@ -51,9 +51,25 @@ type DocumentError struct {
 type DocumentResponse struct {
 	Entities     []Entity           `json:"entities"`
 	ID           string             `json:"id"`
-	RedactedText string             `json:"redactedText"`
+	RedactedText string             `json:"redacted"`
 	Statistics   DocumentStatistics `json:"statistics"`
 	Warnings     []Warning          `json:"warnings"`
+}
+
+func (dr *DocumentResponse) CountCharacters() int {
+	return dr.Statistics.CharactersCount
+}
+
+func (dr *DocumentResponse) CountTransactions() int {
+	return dr.Statistics.TransactionsCount
+}
+
+func (dr *DocumentResponse) IsDirty() bool {
+	return dr.ID != "" && len(dr.Entities) > 0
+}
+
+func (dr *DocumentResponse) IsWarning() bool {
+	return len(dr.Warnings) > 0
 }
 
 // ref: https://learn.microsoft.com/en-us/rest/api/language/text-analysis-runtime/analyze-text?view=rest-language-2023-04-01&tabs=HTTP#documentstatistics

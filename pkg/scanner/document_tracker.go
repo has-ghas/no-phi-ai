@@ -10,13 +10,12 @@ import (
 )
 
 // DocumentTrackerInput struct is used to provide the input parameters for
-// creating a new DocumentTracker object. Wraps the az.Document object and
-// adds fields for tracking the source of the document text back to the
-// original source path (e.g. file, comment, issue body, etc.) and the
-// starting offset of the source text within the document.
+// creating a new DocumentTracker object. Defines the inputs used required
+// for tracking the source of the document text back to the original source
+// path (e.g. file, comment, issue body, etc.) and the starting offset of
+// the source text within the document.
 type DocumentTrackerInput struct {
 	ChannelDocuments chan<- az.AsyncDocumentWrapper
-	Document         *az.Document
 	ID               string
 	Offset           int
 	Path             string
@@ -44,7 +43,6 @@ type DocumentTracker struct {
 	channelDocuments chan<- az.AsyncDocumentWrapper
 	channelQuit      <-chan error
 	channelResponse  chan az.AsyncDocumentResponseWrapper
-	document         *az.Document
 	response         *az.DocumentResponse
 }
 
@@ -64,7 +62,6 @@ func NewDocumentTracker(in *DocumentTrackerInput) (*DocumentTracker, error) {
 		channelDocuments: in.ChannelDocuments,
 		channelResponse:  make(chan az.AsyncDocumentResponseWrapper),
 		channelQuit:      make(chan error),
-		document:         in.Document,
 		response:         nil,
 	}, nil
 }
@@ -79,13 +76,13 @@ func (dt *DocumentTracker) GetResponse() *az.DocumentResponse {
 // the channelDocuments channel for processing and waits for a response to be
 // received on the channelResponse channel created for -- and embedded in --
 // the az.AsyncDocumentWrapper object.
-func (dt *DocumentTracker) Scan() (e error) {
+func (dt *DocumentTracker) Scan(document *az.Document) {
 	// set the started status for the document being tracked
 	dt.Status.SetStarted("started document tracker scan")
 	// create a new az.AsyncDocumentWrapper object
 	wrapper := az.NewAsyncDocumentWrapper(
-		dt.document.ID,
-		dt.document.Text,
+		document.ID,
+		document.Text,
 		"", // use default value for document language
 		dt.channelResponse,
 	)
@@ -102,27 +99,23 @@ func (dt *DocumentTracker) Scan() (e error) {
 		case response := <-dt.channelResponse:
 			// set the response for the document being tracked
 			if err := dt.SetResponse(&response); err != nil {
-				e = errors.Wrap(err, "document tracker failed to set response")
+				err = errors.Wrap(err, "document tracker failed to set response")
+				log.Ctx(scannerContext).Error().Err(err).Msg("document tracker failed to set response")
 				return
 			}
 		case err := <-dt.channelQuit:
 			if err != nil {
-				e = errors.Wrap(e, "document tracker received error from quit channel")
+				err = errors.Wrap(err, "document tracker received error from quit channel")
+				log.Ctx(scannerContext).Error().Err(err).Msg("document tracker received error from quit channel")
 				return
 			}
-			log.Ctx(scannerContext).Trace().Msg("document tracker received interrup signal")
+			log.Ctx(scannerContext).Trace().Msg("document tracker received interrupt signal")
 			// return nil error if the quit channel is closed
 			return
 		}
 	}()
 	wg.Wait()
-	if e != nil {
-		e = errors.Wrap(e, "document tracker channel response error")
-		dt.Status.SetErrored(e.Error())
-		return
-	}
-	log.Ctx(scannerContext).Trace().Msgf("document tracker goroutine done : ID=%s : Offset=%d", wrapper.Document.ID, dt.Offset)
-	return
+	log.Ctx(scannerContext).Trace().Msgf("document tracker goroutine done : ID=%s : Path=%s : Offset=%d", wrapper.Document.ID, dt.Path, dt.Offset)
 }
 
 // SetResponse() method sets the response for the document being tracked.
@@ -132,6 +125,7 @@ func (dt *DocumentTracker) SetResponse(response_wrapper *az.AsyncDocumentRespons
 		e = ErrDocumentResponseIsNil
 	} else if response.ID != dt.ID {
 		e = ErrDocumentResponseMismatch
+		log.Ctx(scannerContext).Error().Err(e).Msgf("response = %+v  :  DocumentTracker = %+v", response, *dt)
 	}
 	if e != nil {
 		// set the errored status of the document tracker
@@ -144,23 +138,48 @@ func (dt *DocumentTracker) SetResponse(response_wrapper *az.AsyncDocumentRespons
 	)
 	// store the response for the document being tracked
 	dt.response = response
-	// set the requested status of the document tracker using the
-	// RequestedAt timestamp set in the response wrapper
+	// set the requested status of the document tracker using the RequestedAt
+	// timestamp from the response wrapper
 	dt.Status.SetRequested(response_wrapper.RequestedAt, "")
-	// set the responded status of the document tracker using the
-	// RespondedAt timestamp set in the response wrapper
+	// set the responded status of the document tracker using the RespondedAt
+	// timestamp from the response wrapper
 	dt.Status.SetResponded(response_wrapper.RespondedAt, "")
-	// process the response before setting the completed result status
-	// set the completed status of the document tracker
-	// TODO : replace 0 with result from processing
+	// process the response before setting the completed status, result code,
+	// and result message within the status object of the document tracker
 	dt.Status.SetCompleted(dt.processResponseResult(response), "")
+
 	return
 }
 
-// TODO
+// processResponseResult() method processes the response for the document being
+// tracked and returns a result code based on the response.
 func (dt *DocumentTracker) processResponseResult(response *az.DocumentResponse) (result int) {
-	result = ResultInitCode // TODO
-	// TODO : process the response result
+	// set the default result
+	result = ResultInitCode
+	if response == nil {
+		return
+	}
+
+	// process the document responses from the server
+	if response.ID != dt.ID {
+		log.Ctx(scannerContext).Error().Msgf(
+			"failed to process document response : ID mismatch : dt.ID=%s : response=%+v",
+			dt.ID,
+			*response,
+		)
+		// result is "error" if the response ID does not match the document ID
+		result = ResultErrorCode
+	} else if response.IsDirty() {
+		// result is "dirty" if the response contains any entities
+		result = ResultDirtyCode
+	} else {
+		// result is "clean" if the response is valid and contains no entities
+		result = ResultCleanCode
+	}
+
+	// process the statistics from the document response
+	// TODO
+
 	return
 }
 

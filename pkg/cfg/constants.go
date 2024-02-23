@@ -10,6 +10,7 @@ const CommandRunHelp string = "help"
 const CommandRunListOrgRepos string = "list-org-repos"
 const CommandRunScanOrg string = "scan-org"
 const CommandRunScanRepos string = "scan-repos"
+const CommandRunScanTest string = "scan-test"
 const CommandRunVersion string = "version"
 
 const DefaultAppLogLevel string = "info"
@@ -29,3 +30,12 @@ const DefaultServerPort int = 8080
 
 const RouteGroupGHv1 string = "/api/v1/github"
 const RouteWebhook string = "/hook"
+
+var DefaultScanFileExtensions = []string{
+	".csv",
+	".html",
+	".json",
+	".md",
+	".xml",
+	".yaml",
+}

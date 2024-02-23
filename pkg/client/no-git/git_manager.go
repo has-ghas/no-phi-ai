@@ -2,14 +2,15 @@ package nogit
 
 import (
 	"context"
-	"errors"
 	"os"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
-	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 )
 
 // GitManager struct provides a management wrapper for interacting with raw
@@ -32,6 +33,33 @@ func NewGitManager(config *cfg.GitConfig, ctx context.Context, logger *zerolog.L
 	}
 }
 
+// CleanRepo() method cleans the local filesystem by removing the directory created
+// by the CloneRepo() method, which forces a fresh clone of the repository on the
+// next call to CloneRepo().
+func (gm *GitManager) CleanRepo(repo_url string) (e error) {
+	var clone_dir string
+	clone_dir, e = gm.getRepoCloneDir(repo_url)
+	if e != nil {
+		return
+	}
+
+	// return a nil error if the clone_dir does not exist
+	if _, e = os.Stat(clone_dir); os.IsNotExist(e) {
+		gm.logger.Debug().Msgf("skiping clean of non-existent repo clone dir %s", clone_dir)
+		e = nil
+		return
+	}
+
+	gm.logger.Info().Msgf("cleaning git repo clone directory : %s", clone_dir)
+	if e = os.RemoveAll(clone_dir); e != nil {
+		gm.logger.Error().Err(e).Msgf("error removing repo clone dir %s", clone_dir)
+		e = errors.Wrapf(e, "error removing repo clone dir %s", clone_dir)
+		return
+	}
+
+	return
+}
+
 // CloneRepo() method clones the repository specified by the repo_url to a
 // subdirectory of the configured gm.config.WorkDir.
 func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
@@ -50,9 +78,9 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 
 	gm.logger.Debug().Ctx(gm.ctx).Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
 	repo, err := git.PlainCloneContext(gm.ctx, clone_dir, false, &git.CloneOptions{
-		Progress: os.Stdout, // TODO : remove/replace this
-		URL:      repo_url,
-		Auth:     auth_method,
+		//Progress: os.Stdout,
+		URL:  repo_url,
+		Auth: auth_method,
 	})
 
 	if err != nil {

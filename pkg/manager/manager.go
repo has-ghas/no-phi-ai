@@ -9,15 +9,17 @@ import (
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
 )
 
 // Manager struct holds the configuration and state for app.
 type Manager struct {
-	config  *cfg.Config
-	ctx     context.Context
-	logger  *zerolog.Logger
-	scanner *scanner.Scanner
-	server  *http.Server
+	config     *cfg.Config
+	ctx        context.Context
+	logger     *zerolog.Logger
+	scanner    *scanner.Scanner
+	scanner_v2 *scannerv2.Scanner
+	server     *http.Server
 }
 
 // New() function returns a new Manager instance for the app.

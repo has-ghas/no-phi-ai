@@ -5,6 +5,7 @@ import (
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
 )
 
 // initCLI() method is used to initialize clients used by the Manager in the
@@ -14,6 +15,13 @@ func (m *Manager) initCLI() (e error) {
 	case cfg.CommandRunHelp:
 		// no clients to initialize for the help command
 		return
+	case cfg.CommandRunScanTest:
+		m.scanner_v2, e = scannerv2.NewScanner(m.ctx, m.config)
+		if e != nil {
+			e = errors.Wrapf(e, "failed to initialize new Scanner for command %s", m.config.Command.Run)
+			return
+		}
+		return
 	case cfg.CommandRunVersion:
 		// no clients to initialize for the version command
 		return
@@ -22,7 +30,7 @@ func (m *Manager) initCLI() (e error) {
 		// commands that involve scanning git repos.
 		m.scanner, e = scanner.NewScanner(m.config, m.ctx, m.logger)
 		if e != nil {
-			e = errors.Wrap(e, "failed to initialize new Scanner for CLI")
+			e = errors.Wrapf(e, "failed to initialize new Scanner for command %s", m.config.Command.Run)
 			return
 		}
 		return
@@ -43,6 +51,9 @@ func (m *Manager) runCLI() (e error) {
 		return
 	case cfg.CommandRunScanRepos:
 		e = m.commandScanRepos()
+		return
+	case cfg.CommandRunScanTest:
+		e = m.commandScanTest()
 		return
 	case cfg.CommandRunVersion:
 		e = m.commandVersion()
