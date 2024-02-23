@@ -16,6 +16,8 @@ default: build
 
 build: build_prep build_only
 
+build_container: vendor build_only
+
 build_only:
 	./scripts/make.build_only.sh
 
