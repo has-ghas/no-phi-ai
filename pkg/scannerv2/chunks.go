@@ -88,6 +88,24 @@ func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
 		continue
 	}
 
+	// ensure that the last chunk of the file is included in the requests
+	if current_text != "" {
+		// create a new request for the remaining text
+		request, err := NewRequest(
+			in.RepoID,
+			in.CommitID,
+			in.File.ID().String(),
+			current_text,
+		)
+		if err != nil {
+			e = err
+			return
+		}
+		requests = append(requests, request)
+		// increment the offset by the length of the current_text
+		current_offset += len(current_text)
+	}
+
 	// validate that the chunking process produced requests if the file
 	// has a size greater than 0
 	if in.File.Size > 0 && len(requests) == 0 {

@@ -10,6 +10,7 @@ const (
 	ErrMsgScanRepositoryCreate     = "failed to create new ScanRepository"
 	ErrMsgScanTrackerUpdateFile    = "failed to update tracker for file %s"
 	ErrMsgScannerCreate            = "failed to create new Scanner"
+	ErrMsgTrackerUpdateCommit      = "failed to update tracker for commit %s"
 )
 
 var (

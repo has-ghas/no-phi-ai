@@ -39,6 +39,10 @@ func KeyCodeValidate(code int) error {
 // KeyData struct is used to track the essential data for a given key
 // in a KeyTracker instance.
 type KeyData struct {
+	// Children is a map of child keys that are associated with the
+	// current key. The map is used to track scan progress for children
+	// as a way to determine when the current key can be marked as complete.
+	Children map[string]bool `json:"children"`
 	// Code is used to represent the state of the object as an integer,
 	// where the value is expected to increase from KeyCodeInit to one
 	// of KeyCodeError, KeyCodePending, or KeyCodeComplete.
@@ -69,6 +73,7 @@ func NewKeyData(code int, message string) (KeyData, error) {
 	now := TimestampNow()
 
 	return KeyData{
+		Children:        make(map[string]bool),
 		Code:            code,
 		Message:         message,
 		State:           KeyCodeToState(code),
@@ -136,28 +141,6 @@ func NewKeyTracker(kind string, logger *zerolog.Logger) (*KeyTracker, error) {
 	}, nil
 }
 
-/*
-	func (kt *KeyTracker) Add(key string) error {
-		if key == "" {
-			return ErrKeyAddKeyEmpty
-		}
-
-		key_data, err := NewKeyData(KeyCodeInit, "")
-		if err != nil {
-			return errors.Wrapf(err, "failed to add key=%s to tracker", key)
-		}
-		kt.mu.Lock()
-		defer kt.mu.Unlock()
-		if _, exists := kt.keys[key]; exists {
-			return ErrKeyAddKeyExists
-		}
-		// add the new key to the tracker
-		kt.keys[key] = key_data
-
-		return nil
-	}
-*/
-
 // Get() method gets the KeyData for the provided key, if it exists in the
 // KeyTracker, and returns the KeyData and a boolean indicating whether
 // the key exists in the tracker.
@@ -196,6 +179,44 @@ func (kt *KeyTracker) GetCounts() KeyDataCounts {
 	}
 
 	return counts
+}
+
+// AllChildrenComplete() method checks if all children of the provided key
+// are complete. Returns false if the key does not exist in the KeyTracker,
+// or if the key has at least one child marked as false/incomplete.
+func (st *KeyTracker) AllChildrenComplete(key string) bool {
+	children, key_exists := st.GetChildren(key)
+	if !key_exists {
+		return false
+	}
+
+	if len(children) == 0 {
+		// no children is the same thing as all children complete
+		return true
+	}
+	for _, is_child_complete := range children {
+		if !is_child_complete {
+			return false
+		}
+	}
+
+	return true
+}
+
+// GetChildren() method gets the map of children for the provided key.
+func (st *KeyTracker) GetChildren(key string) (children map[string]bool, exists bool) {
+	// lock the tracker for reading
+	st.mu.RLock()
+	// unlock the tracker after the function returns
+	defer st.mu.RUnlock()
+
+	key_data, exists := st.keys[key]
+	if !exists {
+		return
+	}
+
+	children = key_data.Children
+	return
 }
 
 // GetKeys() method gets the list of keys known to the KeyTracker, returned
@@ -255,7 +276,7 @@ func (kt *KeyTracker) PrintCounts() KeyDataCounts {
 // Update() method updates the KeyData for the given key with the provided
 // code and message. If the key does not exist in the KeyTracker, then it
 // will be added.
-func (kt *KeyTracker) Update(key string, code_in int, message string) (code_out int, e error) {
+func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys []string) (code_out int, e error) {
 	if key == "" {
 		e = ErrKeyUpdateKeyEmpty
 		return
@@ -264,7 +285,6 @@ func (kt *KeyTracker) Update(key string, code_in int, message string) (code_out 
 		e = errors.Wrapf(e, "failed to update data for key=%s", key)
 		return
 	}
-
 	// use a read-write lock to update the key data
 	kt.mu.Lock()
 	// release the lock after the function returns
@@ -283,28 +303,55 @@ func (kt *KeyTracker) Update(key string, code_in int, message string) (code_out 
 		kt.logger.Trace().Msgf("KIND=%s : created new key=%s with code=%d", kt.kind, key, k_data.Code)
 		return
 	}
-
 	// refuse to go back to a lower state
 	if code_in < key_data.Code {
 		code_out = key_data.Code
 		return
 	}
-
 	// overwrite the message of the existing key data
 	key_data.Message = message
+	// update the latest timestamp for the existing key data
+	key_data.TimestampLatest = TimestampNow()
 
-	if code_in == key_data.Code {
-		// update the latest timestamp for the existing key data
-		key_data.TimestampLatest = TimestampNow()
+	// process the child_keys for "pending" and "complete" states
+	switch code_in {
+	case KeyCodePending:
+		// add/update the "pending" child keys
+		for _, child_key := range child_keys {
+			// set the value to false to indicate the child key is pending
+			key_data.Children[child_key] = false
+		}
+	case KeyCodeComplete:
+		// update the "complete" child keys
+		for _, child_key := range child_keys {
+			// set the value to true to indicate the child key is complete
+			key_data.Children[child_key] = true
+		}
+		is_complete := true
+		for _, is_child_complete := range key_data.Children {
+			if !is_child_complete {
+				is_complete = false
+				break
+			}
+		}
+		// check if all children are complete before marking (this) key_data
+		// as complete
+		if is_complete {
+			key_data.Code = code_in
+			key_data.State = KeyCodeToState(code_in)
+		}
+		// update the existing key data for the completed key state
 		kt.keys[key] = key_data
 		code_out = key_data.Code
 		return
 	}
 
+	if code_in != key_data.Code {
+		key_data.Code = code_in
+		key_data.State = KeyCodeToState(code_in)
+	}
+
 	// update the existing key data
-	key_data.Code = code_in
-	key_data.State = KeyCodeToState(code_in)
-	key_data.TimestampLatest = TimestampNow()
 	kt.keys[key] = key_data
 	code_out = key_data.Code
 

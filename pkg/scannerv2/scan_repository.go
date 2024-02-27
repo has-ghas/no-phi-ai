@@ -151,10 +151,14 @@ func (sr *ScanRepository) clone(gm *nogit.GitManager) (e error) {
 // scanCommit() method scans the tree of the object.Commit for files
 // containing any PHI/PII entities.
 func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
-	err_msg := "failed to update tracker for commit %s"
-	update_code, init_err := sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeInit, "")
+	update_code, init_err := sr.TrackerCommits.Update(
+		commit.Hash.String(),
+		KeyCodeInit,
+		"",
+		[]string{},
+	)
 	if init_err != nil {
-		return errors.Wrapf(init_err, err_msg, commit.Hash.String())
+		return errors.Wrapf(init_err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
 	}
 
 	// skip commits that have already been scanned
@@ -176,26 +180,39 @@ func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
 	// get the tree of objects associated with the commit
 	tree, err := commit.Tree()
 	if err != nil {
-		// TODO
-		_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeError, err.Error())
+		_, err = sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodeError,
+			err.Error(),
+			[]string{},
+		)
 		if err != nil {
-			return errors.Wrapf(err, err_msg, commit.Hash.String())
+			return errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
 		}
 	}
 
 	// iterate through the files in the commit tree
 	err = tree.Files().ForEach(sr.scanFile(commit))
 	if err != nil {
-		err = errors.Wrapf(err, err_msg, commit.Hash.String())
-		sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeError, err.Error())
+		err = errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+		sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodeError,
+			err.Error(),
+			[]string{},
+		)
 		return err
 	}
 
-	// update tracker to mark the scan of this commit as "pending"
-	_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodePending, "")
-	if err != nil {
-		return errors.Wrapf(err, err_msg, commit.Hash.String())
-	}
+	// attempt to update the commit code to "complete" status, but ignore any error
+	// and accept that the commit may be left in "pending" status if the key has
+	// children that are still in an incomplete (bool=false) state
+	sr.TrackerCommits.Update(
+		commit.Hash.String(),
+		KeyCodeComplete,
+		"",
+		[]string{},
+	)
 
 	return nil
 }
@@ -204,7 +221,12 @@ func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
 // the files in the associated commit tree and scan each file for PHI/PII entities.
 func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) error {
 	return func(file *object.File) error {
-		code, err := sr.TrackerFiles.Update(file.Hash.String(), KeyCodeInit, "")
+		code, err := sr.TrackerFiles.Update(
+			file.Hash.String(),
+			KeyCodeInit,
+			"",
+			[]string{},
+		)
 		if err != nil {
 			return errors.Wrapf(err, ErrMsgScanTrackerUpdateFile, file.Hash.String())
 		}
@@ -232,7 +254,12 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 				file.Hash.String(),
 				ignore_reason,
 			)
-			_, err = sr.TrackerFiles.Update(file.Hash.String(), KeyCodeIgnore, ignore_reason)
+			_, err = sr.TrackerFiles.Update(
+				file.Hash.String(),
+				KeyCodeIgnore,
+				ignore_reason,
+				[]string{},
+			)
 			return err
 		}
 		if ignore_reason != "" {
@@ -243,6 +270,16 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 				ignore_reason,
 			)
 		}
+		// update tracker for the associated commit to indicate "pending" status
+		_, err = sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodePending,
+			"",
+			[]string{file.Hash.String()},
+		)
+		if err != nil {
+			return errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+		}
 
 		sr.logger.Debug().Msgf(
 			"commit %s : scanning file %s : %s",
@@ -252,14 +289,19 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 		)
 		// generate and send requests for the contents of the file
 		requests, r_err := ChunkFileToRequests(ChunkFileInput{
-			CommitID:     commit.ID().String(),
+			CommitID:     commit.Hash.String(),
 			File:         file,
 			MaxChunkSize: sr.config.Limits.MaxRequestChunkSize,
 			RepoID:       sr.ID,
 		})
 		if r_err != nil {
 			sr.logger.Error().Err(r_err).Msgf("commit %s : failed to generate requests for file %s", commit.Hash.String(), file.Hash.String())
-			sr.TrackerFiles.Update(file.Hash.String(), KeyCodeError, r_err.Error())
+			sr.TrackerFiles.Update(
+				file.Hash.String(),
+				KeyCodeError,
+				r_err.Error(),
+				[]string{},
+			)
 			return r_err
 		}
 		if len(requests) == 0 {
@@ -276,12 +318,19 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 			// and there is no need to update the tracker
 			return nil
 		}
+		var child_keys []string
 		// send each request to the channel for processing
 		for _, req := range requests {
+			child_keys = append(child_keys, req.ID)
 			sr.channel_requests <- req
 		}
 		// update tracker to mark the scan of this file as "pending"
-		_, err = sr.TrackerFiles.Update(file.Hash.String(), KeyCodePending, "")
+		_, err = sr.TrackerFiles.Update(
+			file.Hash.String(),
+			KeyCodePending,
+			"",
+			child_keys,
+		)
 		if err != nil {
 			return errors.Wrapf(err, ErrMsgScanTrackerUpdateFile, file.Hash.String())
 		}
