@@ -181,44 +181,6 @@ func (kt *KeyTracker) GetCounts() KeyDataCounts {
 	return counts
 }
 
-// AllChildrenComplete() method checks if all children of the provided key
-// are complete. Returns false if the key does not exist in the KeyTracker,
-// or if the key has at least one child marked as false/incomplete.
-func (st *KeyTracker) AllChildrenComplete(key string) bool {
-	children, key_exists := st.GetChildren(key)
-	if !key_exists {
-		return false
-	}
-
-	if len(children) == 0 {
-		// no children is the same thing as all children complete
-		return true
-	}
-	for _, is_child_complete := range children {
-		if !is_child_complete {
-			return false
-		}
-	}
-
-	return true
-}
-
-// GetChildren() method gets the map of children for the provided key.
-func (st *KeyTracker) GetChildren(key string) (children map[string]bool, exists bool) {
-	// lock the tracker for reading
-	st.mu.RLock()
-	// unlock the tracker after the function returns
-	defer st.mu.RUnlock()
-
-	key_data, exists := st.keys[key]
-	if !exists {
-		return
-	}
-
-	children = key_data.Children
-	return
-}
-
 // GetKeys() method gets the list of keys known to the KeyTracker, returned
 // as a slice of strings.
 func (st *KeyTracker) GetKeys() (keys []string) {

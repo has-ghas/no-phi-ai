@@ -7,8 +7,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// MemoryResultRecordIO struct implements the methods of the ResultRecordIO
-// interface.
+// MemoryResultRecordIO struct provides an in-memory implementation
+// of the ResultRecordIO interface. Useful for development, testing,
+// and scans of small-scale repositories.
 type MemoryResultRecordIO struct {
 	ResultRecordIO
 
