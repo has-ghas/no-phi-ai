@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	test_repo_work_dir    = "/tmp/no-phi-ai/test/pkg/scannerv2/scan_repository"
 	test_repo_name        = ".test_NO-PHI-AI"
 	test_repo_org         = "data-douser"
 	test_repo_scan_config = &cfg.GitScanConfig{
@@ -93,4 +92,65 @@ func TestScanRepository_GetRepository(t *testing.T) {
 		result2 := repo.GetRepository()
 		assert.NotNil(t, result2)
 	})
+}
+
+// TestScanRepository_setRepository tests the GetRepository() method
+// of the ScanRepository struct.
+func TestScanRepository_setRepository(t *testing.T) {
+	t.Parallel()
+
+	channel_requests := make(chan<- Request)
+
+	tests := []struct {
+		name                 string
+		expected_init_err    error
+		expected_set_err     error
+		repository_init_func func() (*git.Repository, error)
+	}{
+		{
+			name:              "InvalidRepositoryPointer",
+			expected_init_err: nil,
+			expected_set_err:  ErrScanRepositorySetRepositoryNil,
+			repository_init_func: func() (*git.Repository, error) {
+				return nil, nil
+			},
+		},
+		{
+			name:              "ValidRepositoryInit",
+			expected_init_err: nil,
+			expected_set_err:  nil,
+			repository_init_func: func() (*git.Repository, error) {
+				return git.Init(memory.NewStorage(), nil)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo, err := NewScanRepository(test_context, test_repo_url, test_repo_scan_config, channel_requests)
+			if !assert.NoError(t, err) || !assert.NotNil(t, repo) {
+				t.FailNow()
+			}
+			assert.NotEmpty(t, repo.ID)
+
+			// initialize the bare *git.Repository and add it to the repo object
+			repository, init_err := test.repository_init_func()
+			if test.expected_init_err == nil {
+				assert.NoError(t, init_err)
+			} else {
+				assert.ErrorIs(t, init_err, test.expected_init_err)
+			}
+
+			set_err := repo.setRepository(repository)
+			if test.expected_set_err == nil {
+				assert.NoError(t, set_err)
+			} else {
+				assert.ErrorIs(t, set_err, test.expected_set_err)
+			}
+
+			// get the repository after adding it to the ScanRepository object
+			result := repo.GetRepository()
+			assert.Equal(t, repository, result)
+		})
+	}
 }

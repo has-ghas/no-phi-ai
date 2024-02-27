@@ -122,6 +122,8 @@ func NewKeyTracker(kind string, logger *zerolog.Logger) (*KeyTracker, error) {
 		kind = ScanObjectTypeFile
 	case ScanObjectTypeRepository:
 		kind = ScanObjectTypeRepository
+	case ScanObjectTypeRequestResponse:
+		kind = ScanObjectTypeRequestResponse
 	default:
 		return nil, ErrKeyTrackerInvalidKind
 	}
@@ -239,7 +241,7 @@ func (st *KeyTracker) PrintCodes() []int {
 func (kt *KeyTracker) PrintCounts() KeyDataCounts {
 	counts := kt.GetCounts()
 	kt.logger.Debug().Msgf(
-		"PrintCounts :: KIND=%s : INIT=%d : ERROR=%d : IGNORE=%d : WARNING=%d : COMPLETE=%d",
+		"PrintCounts :: KIND=%s : INIT=%d : ERROR=%d : IGNORE=%d : PENDING=%d : COMPLETE=%d",
 		kt.kind,
 		counts.Init,
 		counts.Error,
@@ -278,7 +280,7 @@ func (kt *KeyTracker) Update(key string, code_in int, message string) (code_out 
 		}
 		kt.keys[key] = k_data
 		code_out = k_data.Code
-		kt.logger.Trace().Msgf("created new key=%s with code=%d", key, k_data.Code)
+		kt.logger.Trace().Msgf("KIND=%s : created new key=%s with code=%d", kt.kind, key, k_data.Code)
 		return
 	}
 

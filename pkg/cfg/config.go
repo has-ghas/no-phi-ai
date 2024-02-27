@@ -191,6 +191,7 @@ type GitScanConfig struct {
 }
 
 type GitScanLimitsConfig struct {
+	MaxRequestChunkSize    int `yaml:"max_request_chunk_size" json:"max_request_chunk_size"`
 	MaxRequestsOutstanding int `yaml:"max_requests_outstanding" json:"max_requests_outstanding"`
 }
 
@@ -249,6 +250,9 @@ func (c *Config) defaultConfig() {
 	}
 	if len(c.Git.Scan.Extensions) == 0 {
 		c.Git.Scan.Extensions = DefaultScanFileExtensions
+	}
+	if c.Git.Scan.Limits.MaxRequestChunkSize == 0 {
+		c.Git.Scan.Limits.MaxRequestChunkSize = DefaultMaxRequestChunkSize
 	}
 	if c.Git.Scan.Limits.MaxRequestsOutstanding == 0 {
 		c.Git.Scan.Limits.MaxRequestsOutstanding = DefaultMaxRequestsOutstanding

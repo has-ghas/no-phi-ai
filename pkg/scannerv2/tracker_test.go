@@ -312,6 +312,17 @@ func TestNewKeyTracker(t *testing.T) {
 			name:         "ValidKindRepository",
 		},
 		{
+			kind: ScanObjectTypeRequestResponse,
+			expected: &KeyTracker{
+				keys:   make(map[string]KeyData, 0),
+				kind:   ScanObjectTypeRequestResponse,
+				logger: &logger,
+				mu:     &sync.RWMutex{},
+			},
+			expected_err: nil,
+			name:         "ValidKindRequestResponse",
+		},
+		{
 			kind:         "InvalidKind",
 			expected:     nil,
 			expected_err: ErrKeyTrackerInvalidKind,

@@ -6,8 +6,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
 )
 
+// commandHelp() method is used to run the "help" (default) command.
 func (m *Manager) commandHelp() (e error) {
 	fmt.Printf("CLI Help Information for %s app:\n", m.config.App.Name)
 	fmt.Println("\tAvailable Commands:")
@@ -77,11 +79,18 @@ func (m *Manager) commandScanTest() (e error) {
 		return
 	}
 
-	err_chan := make(chan error)
-	go m.scanner_v2.Run(err_chan)
+	chan_scan_errors := make(chan error)
+	chan_requests := make(chan scannerv2.Request)
+	chan_responses := make(chan scannerv2.Response)
+	go m.scanner_v2.Run(chan_scan_errors, chan_requests, chan_responses)
+	go scannerv2.DryRunPhiDetector(
+		m.ctx,
+		chan_requests,
+		chan_responses,
+	)
 
 	// wait for an error to be returned from the scanner
-	e = <-err_chan
+	e = <-chan_scan_errors
 	if e != nil {
 		e = errors.Wrapf(e, "failed to run command '%s' ", m.config.Command.Run)
 		return

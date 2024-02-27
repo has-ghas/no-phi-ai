@@ -37,6 +37,22 @@ func TestErrors(t *testing.T) {
 			name: "ErrKeyUpdateKeyEmpty",
 		},
 		{
+			err:  ErrNewRequestEmptyCommitID,
+			name: "ErrNewRequestEmptyCommitID",
+		},
+		{
+			err:  ErrNewRequestEmptyObjectID,
+			name: "ErrNewRequestEmptyObjectID",
+		},
+		{
+			err:  ErrNewRequestEmptyRepositoryID,
+			name: "ErrNewRequestEmptyRepositoryID",
+		},
+		{
+			err:  ErrNewRequestEmptyText,
+			name: "ErrNewRequestEmptyText",
+		},
+		{
 			err:  ErrProcessRequestNoID,
 			name: "ErrProcessRequestNoID",
 		},
@@ -45,8 +61,24 @@ func TestErrors(t *testing.T) {
 			name: "ErrProcessResponseNoID",
 		},
 		{
+			err:  ErrScannerAddScanRepositoryEmptyID,
+			name: "ErrScannerAddScanRepositoryEmptyID",
+		},
+		{
+			err:  ErrScannerAddScanRepositoryNil,
+			name: "ErrScannerAddScanRepositoryNil",
+		},
+		{
+			err:  ErrScannerGetScanRepositoryNotFound,
+			name: "ErrScannerGetScanRepositoryNotFound",
+		},
+		{
 			err:  ErrScanRepositoryChannelDocumentsNil,
 			name: "ErrScanRepositoryChannelDocumentsNil",
+		},
+		{
+			err:  ErrScanRepositoryConfigNil,
+			name: "ErrScanRepositoryConfigNil",
 		},
 		{
 			err:  ErrScanRepositoryContextNil,
@@ -55,6 +87,10 @@ func TestErrors(t *testing.T) {
 		{
 			err:  ErrScanRepositoryCloneGitManagerNil,
 			name: "ErrScanRepositoryCloneGitManagerNil",
+		},
+		{
+			err:  ErrScanRepositorySetRepositoryNil,
+			name: "ErrScanRepositorySetRepositoryNil",
 		},
 	}
 

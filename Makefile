@@ -1,3 +1,5 @@
+# Makefile : no-phi-ai
+#
 _app_name=no-phi-ai
 _app_pkg_dir=pkg
 _build_dir=build
@@ -12,7 +14,7 @@ _msg_success="SUCCESS : ${_msg}"
 
 default: build
 
-.PHONY: build clean deploy format image package remove test tidy vendor
+.PHONY: build clean cover deploy format image package remove test tidy vendor
 
 build: build_prep build_only
 
@@ -31,6 +33,11 @@ clean_and_build: clean build
 clean_test:
 	go clean -testcache
 
+cover: build_only test cover_only
+
+cover_only:
+	${_cmd_go_cover}
+
 format:
 	./scripts/make.format.sh
 
@@ -47,10 +54,7 @@ test:
 
 test_build: tidy build_only test
 
-test_cover: build_only
-	${_cmd_go_cover}
-
-test_full: clean_test test_verbose test_cover
+test_full: clean_test test_verbose cover
 
 test_verbose:
 	./scripts/make.test.sh --verbose

@@ -2,12 +2,10 @@ package scannerv2
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
@@ -18,7 +16,6 @@ var (
 	test_context              = context.Background()
 	test_failed_msg           = "failed test : %s"
 	test_log_level            = "trace"
-	test_scanner_logger       = zerolog.Ctx(test_context)
 	test_work_dir             = "/tmp/no-phi-ai/test/pkg/scannerv2"
 	test_valid_config_func    = func() *cfg.Config {
 		c := cfg.NewDefaultConfig()
@@ -32,7 +29,7 @@ var (
 	}
 )
 
-// TestNewScanner tests the NewScanner function.
+// TestNewScanner unit test function tests the NewScanner() function.
 func TestNewScanner(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -79,7 +76,11 @@ func TestNewScanner(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config := test.config_func()
-			scanner, err := NewScanner(test.ctx, config)
+			scanner, err := NewScanner(
+				test.ctx,
+				config,
+				NewMemoryResultRecordIO(test_context),
+			)
 
 			if test.err_expected {
 				assert.Errorf(t, err, test_failed_msg, test.name)
@@ -100,30 +101,37 @@ func TestScanner_Run(t *testing.T) {
 	tests := []struct {
 		config_func  func() *cfg.Config
 		ctx          context.Context
-		err_chan     chan<- error
+		err_chan     chan error
 		err_expected error
 		name         string
+		req_chan     chan<- Request
+		resp_chan    <-chan Response
 	}{
 		{
 			config_func:  test_valid_config_func,
 			ctx:          test_context,
-			name:         "Scanner_Run_Pass",
-			err_chan:     make(chan<- error),
+			err_chan:     make(chan error),
 			err_expected: nil,
+			name:         "Scanner_Run_Pass",
+			req_chan:     make(chan<- Request),
+			resp_chan:    make(<-chan Response),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config := test.config_func()
-			scanner, scanner_err := NewScanner(test.ctx, config)
+			scanner, scanner_err := NewScanner(
+				test.ctx,
+				config,
+				NewMemoryResultRecordIO(test_context),
+			)
 			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 			}
 
-			err_chan := make(chan error)
-			go scanner.Run(err_chan)
-			err := <-err_chan
+			go scanner.Run(test.err_chan, test.req_chan, test.resp_chan)
+			err := <-test.err_chan
 
 			if test.err_expected == nil {
 				assert.NoErrorf(t, err, test_failed_msg, test.name)
@@ -184,8 +192,12 @@ func TestScanner_addScanRepository(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("RepoID=%s", test.name), func(t *testing.T) {
-			scanner, err := NewScanner(test_context, test_valid_config_func())
+		t.Run(test.name, func(t *testing.T) {
+			scanner, err := NewScanner(
+				test_context,
+				test_valid_config_func(),
+				NewMemoryResultRecordIO(test_context),
+			)
 			if !assert.NoError(t, err) {
 				assert.FailNow(t, "failed to create scanner")
 			}
@@ -195,6 +207,10 @@ func TestScanner_addScanRepository(t *testing.T) {
 			// validate the expected error
 			if test.expected_err == nil {
 				assert.NoError(t, err)
+				// test the getScanRepository() method
+				get_repo, get_err := scanner.getScanRepository(test.repo.ID)
+				assert.NoError(t, get_err)
+				assert.Equal(t, test.repo, get_repo)
 			} else {
 				assert.Equal(t, test.expected_err.Error(), err.Error())
 			}
@@ -209,26 +225,27 @@ func TestScanner_addScanRepository(t *testing.T) {
 func TestScanner_processRequests(t *testing.T) {
 	t.Parallel()
 	// create a new Scanner instance
-	scanner, scanner_err := NewScanner(test_context, test_valid_config_func())
+	scanner, scanner_err := NewScanner(test_context, test_valid_config_func(), NewMemoryResultRecordIO(test_context))
 	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessDocumentRequests") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 	}
 
 	// create input and output channels
 	chan_requests_in := make(chan Request)
+	chan_requests_out := make(chan<- Request)
 	chan_errors_out := make(chan error)
 
-	// start the document request processor
-	go scanner.processRequests(chan_requests_in, chan_errors_out)
+	// start the requests processor
+	go scanner.processRequests(chan_requests_in, chan_requests_out, chan_errors_out)
 
 	chan_requests_in <- Request{}
 	err2 := <-chan_errors_out
 	assert.Equal(t, ErrProcessRequestNoID, err2)
 
-	// close the input channel to stop the document request processor
+	// close the input channel to stop the requests processor
 	close(chan_requests_in)
 
-	// wait for the document request processor to finish
+	// wait for the requests processor to finish
 	time.Sleep(time.Millisecond) // Sleep for a short duration to allow goroutine to exit
 }
 
@@ -237,7 +254,11 @@ func TestScanner_processRequests(t *testing.T) {
 func TestScanner_processResponses(t *testing.T) {
 	t.Parallel()
 	// create a new Scanner instance
-	scanner, scanner_err := NewScanner(test_context, test_valid_config_func())
+	scanner, scanner_err := NewScanner(
+		test_context,
+		test_valid_config_func(),
+		NewMemoryResultRecordIO(test_context),
+	)
 	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessDocumentResponses") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 	}
@@ -246,17 +267,17 @@ func TestScanner_processResponses(t *testing.T) {
 	chan_responses_in := make(chan Response)
 	chan_errors_out := make(chan error)
 
-	// start the document response processor
+	// start the response processor
 	go scanner.processResponses(chan_responses_in, chan_errors_out)
 
-	chan_responses_in <- *NewResponse(&Request{})
+	chan_responses_in <- NewResponse(&Request{})
 	err2 := <-chan_errors_out
 	assert.Equal(t, ErrProcessResponseNoID, err2)
 
-	// close the input channel to stop the document response processor
+	// close the input channel to stop the response processor
 	close(chan_responses_in)
 
-	// wait for the document response processor to finish
+	// wait for the response processor to finish
 	time.Sleep(time.Millisecond) // Sleep for a short duration to allow goroutine to exit
 }
 
@@ -290,7 +311,11 @@ func TestScanner_scan(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config := test.config_func()
-			scanner, scanner_err := NewScanner(test.ctx, config)
+			scanner, scanner_err := NewScanner(
+				test.ctx,
+				config,
+				NewMemoryResultRecordIO(test_context),
+			)
 			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 			}

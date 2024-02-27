@@ -23,13 +23,14 @@ type ScanRepository struct {
 	// The unique URL associated with the object.
 	URL string `json:"url"`
 
+	TrackerCommits *KeyTracker
+	TrackerFiles   *KeyTracker
+
 	channel_requests chan<- Request
 	config           *cfg.GitScanConfig
 	ctx              context.Context
 	logger           *zerolog.Logger
 	repository       *git.Repository
-	TrackerCommits   *KeyTracker
-	TrackerFiles     *KeyTracker
 }
 
 // NewScanRepository() function initializes a new ScanRepository object.
@@ -142,7 +143,7 @@ func (sr *ScanRepository) clone(gm *nogit.GitManager) (e error) {
 	}
 
 	// set the ScanRepository.repository field to associate the git.Repository
-	sr.setRepository(repo)
+	e = sr.setRepository(repo)
 
 	return
 }
@@ -185,14 +186,13 @@ func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
 	// iterate through the files in the commit tree
 	err = tree.Files().ForEach(sr.scanFile(commit))
 	if err != nil {
-		// TODO
-		_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeError, err.Error())
-		if err != nil {
-			return errors.Wrapf(err, err_msg, commit.Hash.String())
-		}
+		err = errors.Wrapf(err, err_msg, commit.Hash.String())
+		sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeError, err.Error())
+		return err
 	}
 
-	_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodeComplete, "")
+	// update tracker to mark the scan of this commit as "pending"
+	_, err = sr.TrackerCommits.Update(commit.Hash.String(), KeyCodePending, "")
 	if err != nil {
 		return errors.Wrapf(err, err_msg, commit.Hash.String())
 	}
@@ -211,13 +211,15 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 		// skip files that have already been scanned
 		if code > KeyCodeInit {
 			sr.logger.Trace().Msgf(
-				"commit %s : skipping previously scanned file %s",
+				"commit %s : skipping previously scanned file %s : code=%d",
 				commit.Hash.String(),
 				file.Hash.String(),
+				code,
 			)
 			return nil
 		}
 
+		// check if the file should be ignored instead of scanned
 		should_ignore, ignore_reason := IgnoreFileObject(
 			file,
 			sr.config.Extensions,
@@ -249,10 +251,37 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 			file.Name,
 		)
 		// generate and send requests for the contents of the file
-		// TODO
-
-		// TODO : move update to Scanner.processResponses()
-		_, err = sr.TrackerFiles.Update(file.Hash.String(), KeyCodeComplete, "")
+		requests, r_err := ChunkFileToRequests(ChunkFileInput{
+			CommitID:     commit.ID().String(),
+			File:         file,
+			MaxChunkSize: sr.config.Limits.MaxRequestChunkSize,
+			RepoID:       sr.ID,
+		})
+		if r_err != nil {
+			sr.logger.Error().Err(r_err).Msgf("commit %s : failed to generate requests for file %s", commit.Hash.String(), file.Hash.String())
+			sr.TrackerFiles.Update(file.Hash.String(), KeyCodeError, r_err.Error())
+			return r_err
+		}
+		if len(requests) == 0 {
+			if file.Size > 0 {
+				sr.logger.Warn().Msgf(
+					"commit %s : no requests generated for file ID=%s : Name=%s : size=%d",
+					commit.Hash.String(),
+					file.Hash.String(),
+					file.Name,
+					file.Size,
+				)
+			}
+			// no requests were generated for the file, so nothing is pending
+			// and there is no need to update the tracker
+			return nil
+		}
+		// send each request to the channel for processing
+		for _, req := range requests {
+			sr.channel_requests <- req
+		}
+		// update tracker to mark the scan of this file as "pending"
+		_, err = sr.TrackerFiles.Update(file.Hash.String(), KeyCodePending, "")
 		if err != nil {
 			return errors.Wrapf(err, ErrMsgScanTrackerUpdateFile, file.Hash.String())
 		}
@@ -263,6 +292,12 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 
 // setRepository() method stores a pointer to the git.Repository associated
 // with the ScanRepository.
-func (sr *ScanRepository) setRepository(repo *git.Repository) {
+func (sr *ScanRepository) setRepository(repo *git.Repository) (e error) {
+	if repo == nil {
+		e = ErrScanRepositorySetRepositoryNil
+		return
+	}
+
 	sr.repository = repo
+	return
 }

@@ -19,6 +19,8 @@ func TestNewDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultAppUserAgent, config.App.UserAgent)
 	assert.Equal(t, DefaultAzureAIShowStats, config.AzureAI.ShowStats)
 	assert.Equal(t, DefaultCommandRun, config.Command.Run)
+	assert.Equal(t, DefaultScanFileExtensions, config.Git.Scan.Extensions)
+	assert.Equal(t, DefaultMaxRequestChunkSize, config.Git.Scan.Limits.MaxRequestChunkSize)
 	assert.Equal(t, DefaultMaxRequestsOutstanding, config.Git.Scan.Limits.MaxRequestsOutstanding)
 	assert.Equal(t, DefaultCommandWorkDir, config.Git.WorkDir)
 	assert.Equal(t, DefaultGitHubV3APIURL, config.GitHub.V3APIURL)
