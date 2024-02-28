@@ -189,18 +189,12 @@ func (s *Scanner) processResponse(r Response, chan_errors_out chan<- error) {
 		chan_errors_out <- ErrProcessResponseNoID
 		return
 	}
-	// get the current state of the associated ScanRepository
-	scan_repo, scan_repo_err := s.getScanRepository(r.Repository.ID)
-	if scan_repo_err != nil {
-		chan_errors_out <- scan_repo_err
-		return
-	}
 	// log the response
 	s.logger.Trace().Msgf(
 		"processing %d results for request/response ID = %s : Repository.ID : %s : Commit.ID = %s : Object.ID = %s",
 		len(r.Results),
 		r.ID,
-		scan_repo.ID,
+		r.Repository.ID,
 		r.Commit.ID,
 		r.Object.ID,
 	)
@@ -218,6 +212,40 @@ func (s *Scanner) processResponse(r Response, chan_errors_out chan<- error) {
 	if err != nil {
 		chan_errors_out <- err
 		return
+	}
+	scan_repo, scan_repo_err := s.getScanRepository(r.Repository.ID)
+	if scan_repo_err != nil {
+		chan_errors_out <- scan_repo_err
+		return
+	}
+	// update the tracker for the associated File object to mark this
+	// request/response as complete. if all requests/responses for a
+	// File object are complete, the File object should be marked as
+	// KeyCodeComplete.
+	var file_update_code int
+	file_update_code, err = scan_repo.TrackerFiles.Update(
+		r.Object.ID,
+		KeyCodeComplete,
+		"",
+		[]string{r.ID},
+	)
+	if err != nil {
+		chan_errors_out <- err
+		return
+	}
+	// only update the associated commit if the file update code is
+	// KeyCodeComplete.
+	if file_update_code == KeyCodeComplete {
+		_, err = scan_repo.TrackerCommits.Update(
+			r.Commit.ID,
+			KeyCodeComplete,
+			"",
+			[]string{r.Object.ID},
+		)
+		if err != nil {
+			chan_errors_out <- err
+			return
+		}
 	}
 }
 

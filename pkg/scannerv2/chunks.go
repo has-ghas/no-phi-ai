@@ -102,8 +102,6 @@ func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
 			return
 		}
 		requests = append(requests, request)
-		// increment the offset by the length of the current_text
-		current_offset += len(current_text)
 	}
 
 	// validate that the chunking process produced requests if the file
