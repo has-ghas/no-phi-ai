@@ -15,7 +15,6 @@ const (
 
 var (
 	ErrChunkFileToRequestsFailed         = errors.New("failed to chunk non-empty file into one or more requests")
-	ErrDocumentResponseMismatch          = errors.New("DocumentResponse mismatch")
 	ErrKeyAddKeyEmpty                    = errors.New("cannot add key : key is empty")
 	ErrKeyAddKeyExists                   = errors.New("cannot add key : key already exists")
 	ErrKeyCodeInvalid                    = errors.New("invalid key code")
@@ -33,7 +32,8 @@ var (
 	ErrScannerAddScanRepositoryEmptyID   = errors.New("cannot add a ScanRepository with an empty ID")
 	ErrScannerAddScanRepositoryNil       = errors.New("cannot add a nil ScanRepository to scanner")
 	ErrScannerGetScanRepositoryNotFound  = errors.New("ScanRepository not found")
-	ErrScanRepositoryChannelDocumentsNil = errors.New("ScanRepository channelDocuments channel is nil")
+	ErrScanRepositoryChannelErrorsNil    = errors.New("ScanRepository errors channel is nil")
+	ErrScanRepositoryChannelRequestsNil  = errors.New("ScanRepository requests channel is nil")
 	ErrScanRepositoryConfigNil           = errors.New("ScanRepository config is nil")
 	ErrScanRepositoryContextNil          = errors.New("ScanRepository requires a non-nil context")
 	ErrScanRepositoryCloneGitManagerNil  = errors.New("ScanRepository git manager is nil")

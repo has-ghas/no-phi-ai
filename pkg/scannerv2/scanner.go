@@ -316,7 +316,13 @@ func (s *Scanner) scan(err_chan chan<- error) {
 	// scan the configured list of repositories
 	for _, repo := range s.git_config.Scan.Repositories {
 		// create a scan object for the repository
-		scan_repo, err := NewScanRepository(s.ctx, repo, &s.git_config.Scan, s.chan_requests)
+		scan_repo, err := NewScanRepository(
+			s.ctx,
+			repo,
+			&s.git_config.Scan,
+			s.chan_requests,
+			s.chan_errors,
+		)
 		if err != nil {
 			err_chan <- errors.Wrap(err, "failed to create scan repository object")
 			return

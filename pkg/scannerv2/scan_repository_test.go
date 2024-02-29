@@ -22,11 +22,21 @@ var (
 
 // TestNewScanRepository unit test function tests the NewScanRepository() function.
 func TestNewScanRepository(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
+	channel_errors := make(chan<- error)
 	channel_requests := make(chan<- Request)
 
 	t.Run("ValidInput", func(t *testing.T) {
-		repo, err := NewScanRepository(ctx, test_repo_url, test_repo_scan_config, channel_requests)
+		repo, err := NewScanRepository(
+			ctx,
+			test_repo_url,
+			test_repo_scan_config,
+			channel_requests,
+			channel_errors,
+		)
+
 		assert.NoError(t, err)
 		assert.NotNil(t, repo)
 		assert.NotEmpty(t, repo.ID)
@@ -42,22 +52,57 @@ func TestNewScanRepository(t *testing.T) {
 	})
 
 	t.Run("NilContext", func(t *testing.T) {
-		repo, err := NewScanRepository(nil, test_repo_url, test_repo_scan_config, channel_requests)
+		repo, err := NewScanRepository(
+			nil,
+			test_repo_url,
+			test_repo_scan_config,
+			channel_requests,
+			channel_errors,
+		)
+
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.ErrorContains(t, err, ErrScanRepositoryContextNil.Error())
 		assert.Nil(t, repo)
 	})
 
-	t.Run("NilChannelDocuments", func(t *testing.T) {
-		repo, err := NewScanRepository(ctx, test_repo_url, test_repo_scan_config, nil)
+	t.Run("NilChannelErrors", func(t *testing.T) {
+		repo, err := NewScanRepository(
+			ctx,
+			test_repo_url,
+			test_repo_scan_config,
+			channel_requests,
+			nil,
+		)
+
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
-		assert.ErrorContains(t, err, ErrScanRepositoryChannelDocumentsNil.Error())
+		assert.ErrorContains(t, err, ErrScanRepositoryChannelErrorsNil.Error())
+		assert.Nil(t, repo)
+	})
+
+	t.Run("NilChannelRequests", func(t *testing.T) {
+		repo, err := NewScanRepository(
+			ctx,
+			test_repo_url,
+			test_repo_scan_config,
+			nil,
+			channel_errors,
+		)
+
+		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
+		assert.ErrorContains(t, err, ErrScanRepositoryChannelRequestsNil.Error())
 		assert.Nil(t, repo)
 	})
 
 	t.Run("InvalidURL", func(t *testing.T) {
 		invalidURL := "invalid-url"
-		repo, err := NewScanRepository(ctx, invalidURL, test_repo_scan_config, channel_requests)
+		repo, err := NewScanRepository(
+			ctx,
+			invalidURL,
+			test_repo_scan_config,
+			channel_requests,
+			channel_errors,
+		)
+
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.Nil(t, repo)
 	})
@@ -66,12 +111,21 @@ func TestNewScanRepository(t *testing.T) {
 // TestScanRepository_GetRepository tests the GetRepository() method
 // of the ScanRepository struct.
 func TestScanRepository_GetRepository(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
+	channel_errors := make(chan<- error)
 	channel_requests := make(chan<- Request)
 	name := "TestRepositoryInit"
 
 	t.Run(name, func(t *testing.T) {
-		repo, err := NewScanRepository(ctx, test_repo_url, test_repo_scan_config, channel_requests)
+		repo, err := NewScanRepository(
+			ctx,
+			test_repo_url,
+			test_repo_scan_config,
+			channel_requests,
+			channel_errors,
+		)
 		if !assert.NoError(t, err) || !assert.NotNil(t, repo) {
 			t.FailNow()
 		}
@@ -99,6 +153,7 @@ func TestScanRepository_GetRepository(t *testing.T) {
 func TestScanRepository_setRepository(t *testing.T) {
 	t.Parallel()
 
+	channel_errors := make(chan<- error)
 	channel_requests := make(chan<- Request)
 
 	tests := []struct {
@@ -127,7 +182,13 @@ func TestScanRepository_setRepository(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repo, err := NewScanRepository(test_context, test_repo_url, test_repo_scan_config, channel_requests)
+			repo, err := NewScanRepository(
+				test_context,
+				test_repo_url,
+				test_repo_scan_config,
+				channel_requests,
+				channel_errors,
+			)
 			if !assert.NoError(t, err) || !assert.NotNil(t, repo) {
 				t.FailNow()
 			}

@@ -13,10 +13,6 @@ func TestErrors(t *testing.T) {
 		name string
 	}{
 		{
-			err:  ErrDocumentResponseMismatch,
-			name: "ErrDocumentResponseMismatch",
-		},
-		{
 			err:  ErrKeyAddKeyEmpty,
 			name: "ErrKeyAddKeyEmpty",
 		},
@@ -73,8 +69,8 @@ func TestErrors(t *testing.T) {
 			name: "ErrScannerGetScanRepositoryNotFound",
 		},
 		{
-			err:  ErrScanRepositoryChannelDocumentsNil,
-			name: "ErrScanRepositoryChannelDocumentsNil",
+			err:  ErrScanRepositoryChannelRequestsNil,
+			name: "ErrScanRepositoryChannelRequestsNil",
 		},
 		{
 			err:  ErrScanRepositoryConfigNil,

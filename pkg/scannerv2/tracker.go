@@ -65,15 +65,24 @@ type KeyData struct {
 // NewKeyData() function initializes a new KeyData struct with the
 // provided code and message. Returns an empty KeyData struct and a
 // non-nil error if the code is invalid.
-func NewKeyData(code int, message string) (KeyData, error) {
+func NewKeyData(code int, message string, child_keys []string) (KeyData, error) {
 	if err := KeyCodeValidate(code); err != nil {
 		return KeyData{}, errors.Wrapf(err, "failed to create new KeyData with code %d", code)
 	}
 
 	now := TimestampNow()
 
+	children := make(map[string]bool)
+	child_state := false
+	if code == KeyCodeComplete {
+		child_state = true
+	}
+	for _, key := range child_keys {
+		children[key] = child_state
+	}
+
 	return KeyData{
-		Children:        make(map[string]bool),
+		Children:        children,
 		Code:            code,
 		Message:         message,
 		State:           KeyCodeToState(code),
@@ -255,7 +264,7 @@ func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys
 	// check if the key already exists in the kt.keys map
 	if !exists {
 		// add the key if it does not exist
-		k_data, k_err := NewKeyData(code_in, message)
+		k_data, k_err := NewKeyData(code_in, message, child_keys)
 		if k_err != nil {
 			e = errors.Wrapf(k_err, "failed to update data for key=%s", key)
 			return

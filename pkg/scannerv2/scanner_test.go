@@ -226,7 +226,7 @@ func TestScanner_processRequests(t *testing.T) {
 	t.Parallel()
 	// create a new Scanner instance
 	scanner, scanner_err := NewScanner(test_context, test_valid_config_func(), NewMemoryResultRecordIO(test_context))
-	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessDocumentRequests") {
+	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessRequests") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 	}
 
@@ -259,7 +259,7 @@ func TestScanner_processResponses(t *testing.T) {
 		test_valid_config_func(),
 		NewMemoryResultRecordIO(test_context),
 	)
-	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessDocumentResponses") {
+	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessResponses") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 	}
 
