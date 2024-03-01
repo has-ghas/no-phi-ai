@@ -33,22 +33,6 @@ func TestErrors(t *testing.T) {
 			name: "ErrKeyUpdateKeyEmpty",
 		},
 		{
-			err:  ErrNewRequestEmptyCommitID,
-			name: "ErrNewRequestEmptyCommitID",
-		},
-		{
-			err:  ErrNewRequestEmptyObjectID,
-			name: "ErrNewRequestEmptyObjectID",
-		},
-		{
-			err:  ErrNewRequestEmptyRepositoryID,
-			name: "ErrNewRequestEmptyRepositoryID",
-		},
-		{
-			err:  ErrNewRequestEmptyText,
-			name: "ErrNewRequestEmptyText",
-		},
-		{
 			err:  ErrProcessRequestNoID,
 			name: "ErrProcessRequestNoID",
 		},

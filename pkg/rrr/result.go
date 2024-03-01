@@ -1,4 +1,4 @@
-package scannerv2
+package rrr
 
 import (
 	"crypto/sha1"

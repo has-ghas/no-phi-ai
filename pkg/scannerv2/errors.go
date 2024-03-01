@@ -3,18 +3,15 @@ package scannerv2
 import "github.com/pkg/errors"
 
 const (
-	ErrMsgAddScanRepository        = "failed to add ScanRepository"
-	ErrMsgResultWriteFailed        = "failed to write result"
-	ErrMsgScanFileReader           = "failed to create reader for file"
-	ErrMsgScanFileRequestsGenerate = "failed to generate new requests for file %s"
-	ErrMsgScanRepositoryCreate     = "failed to create new ScanRepository"
-	ErrMsgScanTrackerUpdateFile    = "failed to update tracker for file %s"
-	ErrMsgScannerCreate            = "failed to create new Scanner"
-	ErrMsgTrackerUpdateCommit      = "failed to update tracker for commit %s"
+	ErrMsgAddScanRepository     = "failed to add ScanRepository"
+	ErrMsgResultWriteFailed     = "failed to write result"
+	ErrMsgScanRepositoryCreate  = "failed to create new ScanRepository"
+	ErrMsgScanTrackerUpdateFile = "failed to update tracker for file %s"
+	ErrMsgScannerCreate         = "failed to create new Scanner"
+	ErrMsgTrackerUpdateCommit   = "failed to update tracker for commit %s"
 )
 
 var (
-	ErrChunkFileToRequestsFailed         = errors.New("failed to chunk non-empty file into one or more requests")
 	ErrKeyAddKeyEmpty                    = errors.New("cannot add key : key is empty")
 	ErrKeyAddKeyExists                   = errors.New("cannot add key : key already exists")
 	ErrKeyCodeInvalid                    = errors.New("invalid key code")
@@ -23,10 +20,6 @@ var (
 	ErrMemoryResultRecordIODeleteEmptyID = errors.New("memory store failed to delete result record : empty ID")
 	ErrMemoryResultRecordIOReadEmptyID   = errors.New("memory store failed to read result record : empty ID")
 	ErrMemoryResultRecordIOReadFailed    = errors.New("memory store failed to read result record")
-	ErrNewRequestEmptyCommitID           = errors.New("cannot create a new request with an empty commit ID")
-	ErrNewRequestEmptyObjectID           = errors.New("cannot create a new request with an empty object ID")
-	ErrNewRequestEmptyRepositoryID       = errors.New("cannot create a new request with an empty repository ID")
-	ErrNewRequestEmptyText               = errors.New("cannot create a new request with an empty text")
 	ErrProcessRequestNoID                = errors.New("cannot process a request without a valid ID")
 	ErrProcessResponseNoID               = errors.New("cannot process a response without a valid ID")
 	ErrScannerAddScanRepositoryEmptyID   = errors.New("cannot add a ScanRepository with an empty ID")

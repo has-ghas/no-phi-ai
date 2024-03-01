@@ -24,9 +24,6 @@ const KeyStateInit = "init"
 const KeyStateError = "error"
 const KeyStatePending = "pending"
 
-const ResultReplaceEmptyElement string = "###@@@###"
-const ResultSeparatorUID string = "__"
-
 const ScanMetricsRefreshSeconds int = 10
 const ScanObjectTypeCommit string = "commit"
 const ScanObjectTypeDocument string = "document"

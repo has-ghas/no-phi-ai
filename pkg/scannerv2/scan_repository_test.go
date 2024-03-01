@@ -8,6 +8,8 @@ import (
 	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 var (
@@ -26,7 +28,7 @@ func TestNewScanRepository(t *testing.T) {
 
 	ctx := context.Background()
 	channel_errors := make(chan<- error)
-	channel_requests := make(chan<- Request)
+	channel_requests := make(chan<- rrr.Request)
 
 	t.Run("ValidInput", func(t *testing.T) {
 		repo, err := NewScanRepository(
@@ -115,7 +117,7 @@ func TestScanRepository_GetRepository(t *testing.T) {
 
 	ctx := context.Background()
 	channel_errors := make(chan<- error)
-	channel_requests := make(chan<- Request)
+	channel_requests := make(chan<- rrr.Request)
 	name := "TestRepositoryInit"
 
 	t.Run(name, func(t *testing.T) {
@@ -154,7 +156,7 @@ func TestScanRepository_setRepository(t *testing.T) {
 	t.Parallel()
 
 	channel_errors := make(chan<- error)
-	channel_requests := make(chan<- Request)
+	channel_requests := make(chan<- rrr.Request)
 
 	tests := []struct {
 		name                 string

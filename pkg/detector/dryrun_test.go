@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 // TestNewDryRunPhiDetector() unit test function tests the
@@ -26,55 +27,55 @@ func TestDryRunPhiDetector_Run(t *testing.T) {
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
-	chan_requests_in := make(chan scannerv2.Request)
-	chan_responses_out := make(chan scannerv2.Response)
+	chan_requests_in := make(chan rrr.Request)
+	chan_responses_out := make(chan rrr.Response)
 
 	go d.Run(ctx, chan_requests_in, chan_responses_out)
 
-	request_1 := scannerv2.Request{
-		MetadataRequestResponse: scannerv2.MetadataRequestResponse{
+	request_1 := rrr.Request{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "request-1",
-			Commit: scannerv2.MetadataRequestResponseCommit{
+			Commit: rrr.MetadataRequestResponseCommit{
 				ID: "commit-1",
 			},
-			Object: scannerv2.MetadataRequestResponseObject{
+			Object: rrr.MetadataRequestResponseObject{
 				ID: "object-1",
 			},
-			Repository: scannerv2.MetadataRequestResponseRepository{
+			Repository: rrr.MetadataRequestResponseRepository{
 				ID: "repository-1",
 			},
 		},
 	}
-	request_2 := scannerv2.Request{
-		MetadataRequestResponse: scannerv2.MetadataRequestResponse{
+	request_2 := rrr.Request{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "request-2",
-			Commit: scannerv2.MetadataRequestResponseCommit{
+			Commit: rrr.MetadataRequestResponseCommit{
 				ID: "commit-2",
 			},
-			Object: scannerv2.MetadataRequestResponseObject{
+			Object: rrr.MetadataRequestResponseObject{
 				ID: "object-2",
 			},
-			Repository: scannerv2.MetadataRequestResponseRepository{
+			Repository: rrr.MetadataRequestResponseRepository{
 				ID: "repository-2",
 			},
 		},
 	}
-	request_3 := scannerv2.Request{
-		MetadataRequestResponse: scannerv2.MetadataRequestResponse{
+	request_3 := rrr.Request{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "request-3",
-			Commit: scannerv2.MetadataRequestResponseCommit{
+			Commit: rrr.MetadataRequestResponseCommit{
 				ID: "commit-3",
 			},
-			Object: scannerv2.MetadataRequestResponseObject{
+			Object: rrr.MetadataRequestResponseObject{
 				ID: "object-3",
 			},
-			Repository: scannerv2.MetadataRequestResponseRepository{
+			Repository: rrr.MetadataRequestResponseRepository{
 				ID: "repository-3",
 			},
 		},
 	}
 	// define the expected result common to both responses
-	expectedResult := scannerv2.Result{
+	expectedResult := rrr.Result{
 		Category:        DryRunCategory,
 		ConfidenceScore: DryRunConfidenceScore,
 		Length:          DryRunLength,
@@ -86,17 +87,17 @@ func TestDryRunPhiDetector_Run(t *testing.T) {
 
 	chan_requests_in <- request_1
 	response_1 := <-chan_responses_out
-	assert.Equal(t, []scannerv2.Result{expectedResult}, response_1.Results)
+	assert.Equal(t, []rrr.Result{expectedResult}, response_1.Results)
 	assert.Equal(t, request_1.MetadataRequestResponse, response_1.MetadataRequestResponse)
 
 	chan_requests_in <- request_2
 	response_2 := <-chan_responses_out
-	assert.Equal(t, []scannerv2.Result{expectedResult}, response_2.Results)
+	assert.Equal(t, []rrr.Result{expectedResult}, response_2.Results)
 	assert.Equal(t, request_2.MetadataRequestResponse, response_2.MetadataRequestResponse)
 
 	chan_requests_in <- request_3
 	response_3 := <-chan_responses_out
-	assert.Equal(t, []scannerv2.Result{expectedResult}, response_3.Results)
+	assert.Equal(t, []rrr.Result{expectedResult}, response_3.Results)
 	assert.Equal(t, request_3.MetadataRequestResponse, response_3.MetadataRequestResponse)
 
 	// cancel the context to stop the DryRunPhiDetector() function

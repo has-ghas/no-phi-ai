@@ -6,6 +6,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 // TestNewMemoryResultRecordIO() unit test function tests the
@@ -42,7 +44,7 @@ func TestMemoryResultRecordIO_Delete(t *testing.T) {
 
 	// add a result record to the map
 	id := "123"
-	resultIO.result_records[id] = ResultRecord{}
+	resultIO.result_records[id] = rrr.ResultRecord{}
 
 	// call the Delete method
 	err := resultIO.Delete(id)
@@ -63,22 +65,22 @@ func TestMemoryResultRecordIO_List(t *testing.T) {
 	resultIO := NewMemoryResultRecordIO(ctx)
 
 	// add some result records to the map
-	result1 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result1 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "1",
 		},
 		Hash: "hash-1",
 	}
 	resultIO.result_records["hash-1"] = result1
-	result2 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result2 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "2",
 		},
 		Hash: "hash-2",
 	}
 	resultIO.result_records["hash-2"] = result2
-	result3 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result3 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "3",
 		},
 		Hash: "hash-3",
@@ -108,8 +110,8 @@ func TestMemoryResultRecordIO_Read(t *testing.T) {
 
 	// add a result record to the map
 	id := "123"
-	result := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "123",
 		},
 		Hash: "hash-123",
@@ -140,7 +142,7 @@ func TestMemoryResultRecordIO_ReadEmptyID(t *testing.T) {
 	// assert that an error is returned
 	assert.Error(t, err)
 	assert.Equal(t, ErrMemoryResultRecordIOReadEmptyID, err)
-	assert.Equal(t, ResultRecord{}, record)
+	assert.Equal(t, rrr.ResultRecord{}, record)
 }
 
 // TestMemoryResultRecordIO_ReadFailed unit test function tests the
@@ -159,7 +161,7 @@ func TestMemoryResultRecordIO_ReadFailed(t *testing.T) {
 	// assert that an error is returned
 	assert.Error(t, err)
 	assert.Equal(t, ErrMemoryResultRecordIOReadFailed, err)
-	assert.Equal(t, ResultRecord{}, record)
+	assert.Equal(t, rrr.ResultRecord{}, record)
 }
 
 // TestMemoryResultRecordIO_Write unit test function tests the
@@ -173,25 +175,25 @@ func TestMemoryResultRecordIO_Write(t *testing.T) {
 	resultIO := NewMemoryResultRecordIO(ctx)
 
 	// create some result records
-	result1 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result1 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "1",
 		},
 		Hash: "hash-1",
 	}
-	result2 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result2 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "2",
 		},
 		Hash: "hash-2",
 	}
-	result3 := ResultRecord{
-		MetadataRequestResponse: MetadataRequestResponse{
+	result3 := rrr.ResultRecord{
+		MetadataRequestResponse: rrr.MetadataRequestResponse{
 			ID: "3",
 		},
 		Hash: "hash-3",
 	}
-	result_records := []ResultRecord{result1, result2, result3}
+	result_records := []rrr.ResultRecord{result1, result2, result3}
 
 	// call the Write method
 	err := resultIO.Write(result_records)

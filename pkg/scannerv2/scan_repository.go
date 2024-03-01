@@ -11,6 +11,7 @@ import (
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 // ScanRepository struct embeds the ScanObject struct and adds fields
@@ -30,7 +31,7 @@ type ScanRepository struct {
 	channel_commits  chan *object.Commit
 	channel_errors   chan<- error
 	channel_files    chan *object.File
-	channel_requests chan<- Request
+	channel_requests chan<- rrr.Request
 	config           *cfg.GitScanConfig
 	ctx              context.Context
 	logger           *zerolog.Logger
@@ -42,7 +43,7 @@ func NewScanRepository(
 	ctx context.Context,
 	url string,
 	config *cfg.GitScanConfig,
-	channel_requests chan<- Request,
+	channel_requests chan<- rrr.Request,
 	channel_errors chan<- error,
 ) (*ScanRepository, error) {
 	if ctx == nil {
@@ -329,7 +330,7 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 			file.Name,
 		)
 		// generate and send requests for the contents of the file
-		requests, r_err := ChunkFileToRequests(ChunkFileInput{
+		requests, r_err := rrr.ChunkFileToRequests(rrr.ChunkFileInput{
 			CommitID:     commit.Hash.String(),
 			File:         file,
 			MaxChunkSize: sr.config.Limits.MaxRequestChunkSize,

@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 const DryRunCategory = "dry-run_category"
@@ -16,8 +16,7 @@ const DryRunService = "dry-run_service"
 const DryRunSubcategory = "dry-run_subcategory"
 const DryRunText = "dry-run_text"
 
-// DryRunPhiDetector struct type is a wrapper for the Run() method, which
-// implements the scannerv2.RequestResponsePhiDetector interface.
+// DryRunPhiDetector struct type is a wrapper for the Run() method.
 type DryRunPhiDetector struct{}
 
 // NewDryRunPhiDetector() function returns a new DryRunPhiDetector instance.
@@ -26,7 +25,7 @@ func NewDryRunPhiDetector() *DryRunPhiDetector {
 }
 
 // Run() method listens for requests, performs no operations other than
-// translating the scannerv2.Request to a new scannerv2.Response, and
+// translating the rrr.Request to a new rrr.Response, and
 // sends responses using the provided channels.
 //
 // Useful for testing the performance of the Scanner in generating requests
@@ -34,8 +33,8 @@ func NewDryRunPhiDetector() *DryRunPhiDetector {
 // commits of the scanned repositories.
 func (detector *DryRunPhiDetector) Run(
 	ctx context.Context,
-	chan_requests_in <-chan scannerv2.Request,
-	chan_responses_out chan<- scannerv2.Response,
+	chan_requests_in <-chan rrr.Request,
+	chan_responses_out chan<- rrr.Response,
 ) {
 	defer close(chan_responses_out)
 
@@ -50,10 +49,10 @@ func (detector *DryRunPhiDetector) Run(
 			// exit the function when the context is done
 			return
 		case request := <-chan_requests_in:
-			// create a scannerv2.Response from the scannerv2.Request metadata
-			response := scannerv2.NewResponse(&request)
-			// create a dummy scannerv2.Result for the scannerv2.Response
-			result := scannerv2.Result{
+			// create a rrr.Response from the rrr.Request metadata
+			response := rrr.NewResponse(&request)
+			// create a dummy rrr.Result for the rrr.Response
+			result := rrr.Result{
 				Category:        DryRunCategory,
 				ConfidenceScore: DryRunConfidenceScore,
 				Length:          DryRunLength,

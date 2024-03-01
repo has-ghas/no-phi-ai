@@ -1,4 +1,4 @@
-package scannerv2
+package rrr
 
 import (
 	"bufio"
@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ChunkFileInput struct contains the input parameters required for the
-// ChunkFileToRequests() function.
+// ChunkFileInput struct contains the input parameters required for
+// the ChunkFileToRequests() function.
 type ChunkFileInput struct {
 	CommitID     string
 	File         *object.File
@@ -17,14 +17,19 @@ type ChunkFileInput struct {
 	RepoID       string
 }
 
-// ChunkFileToRequests() function reads the input object.File and generates
-// slice of requests, where the text in each request is limited to
-// MaxChunkSize characters.
+// ChunkFileToRequests() function reads the input object.File and
+// generates a slice of requests, where the text in each request is
+// limited to MaxChunkSize characters.
 func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
+	if in.File == nil {
+		e = ErrChunkFileToRequestsInFileNil
+		return
+	}
+
 	requests = make([]Request, 0)
 	file_reader, err := in.File.Reader()
 	if err != nil {
-		e = errors.Wrap(err, ErrMsgScanFileReader)
+		e = errors.Wrapf(err, ErrMsgScanFileRequestsGenerate, in.File.Hash.String())
 		return
 	}
 
@@ -132,6 +137,10 @@ func ChunkLineToRequests(in ChunkLineInput) (offset int, requests []Request, e e
 	offset = in.Offset
 
 	if in.Line == "" {
+		return
+	}
+	if in.MaxChunkSize <= 0 {
+		e = ErrMaxChunkSizeInvalid
 		return
 	}
 

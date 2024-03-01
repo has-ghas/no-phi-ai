@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 var (
@@ -104,8 +105,8 @@ func TestScanner_Run(t *testing.T) {
 		err_chan     chan error
 		err_expected error
 		name         string
-		req_chan     chan<- Request
-		resp_chan    <-chan Response
+		req_chan     chan<- rrr.Request
+		resp_chan    <-chan rrr.Response
 	}{
 		{
 			config_func:  test_valid_config_func,
@@ -113,8 +114,8 @@ func TestScanner_Run(t *testing.T) {
 			err_chan:     make(chan error),
 			err_expected: nil,
 			name:         "Scanner_Run_Pass",
-			req_chan:     make(chan<- Request),
-			resp_chan:    make(<-chan Response),
+			req_chan:     make(chan<- rrr.Request),
+			resp_chan:    make(<-chan rrr.Response),
 		},
 	}
 
@@ -231,14 +232,14 @@ func TestScanner_processRequests(t *testing.T) {
 	}
 
 	// create input and output channels
-	chan_requests_in := make(chan Request)
-	chan_requests_out := make(chan<- Request)
+	chan_requests_in := make(chan rrr.Request)
+	chan_requests_out := make(chan<- rrr.Request)
 	chan_errors_out := make(chan error)
 
 	// start the requests processor
 	go scanner.processRequests(chan_requests_in, chan_requests_out, chan_errors_out)
 
-	chan_requests_in <- Request{}
+	chan_requests_in <- rrr.Request{}
 	err2 := <-chan_errors_out
 	assert.Equal(t, ErrProcessRequestNoID, err2)
 
@@ -264,13 +265,13 @@ func TestScanner_processResponses(t *testing.T) {
 	}
 
 	// create input and output channels
-	chan_responses_in := make(chan Response)
+	chan_responses_in := make(chan rrr.Response)
 	chan_errors_out := make(chan error)
 
 	// start the response processor
 	go scanner.processResponses(chan_responses_in, chan_errors_out)
 
-	chan_responses_in <- NewResponse(&Request{})
+	chan_responses_in <- rrr.NewResponse(&rrr.Request{})
 	err2 := <-chan_errors_out
 	assert.Equal(t, ErrProcessResponseNoID, err2)
 

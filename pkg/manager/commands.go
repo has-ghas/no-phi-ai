@@ -7,7 +7,7 @@ import (
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/detector"
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 // commandHelp() method is used to run the "help" (default) command.
@@ -81,8 +81,8 @@ func (m *Manager) commandScanTest() (e error) {
 	}
 
 	chan_scan_errors := make(chan error)
-	chan_requests := make(chan scannerv2.Request)
-	chan_responses := make(chan scannerv2.Response)
+	chan_requests := make(chan rrr.Request)
+	chan_responses := make(chan rrr.Response)
 	dry_run_detector := detector.NewDryRunPhiDetector()
 
 	go m.scanner_v2.Run(chan_scan_errors, chan_requests, chan_responses)

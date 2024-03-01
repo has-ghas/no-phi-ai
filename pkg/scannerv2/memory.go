@@ -5,17 +5,19 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/rrr"
 )
 
 // MemoryResultRecordIO struct provides an in-memory implementation
 // of the ResultRecordIO interface. Useful for development, testing,
 // and scans of small-scale repositories.
 type MemoryResultRecordIO struct {
-	ResultRecordIO
+	rrr.ResultRecordIO
 
 	logger         *zerolog.Logger
 	mutex          *sync.RWMutex
-	result_records map[string]ResultRecord
+	result_records map[string]rrr.ResultRecord
 }
 
 // NewMemoryResultRecordIO() function initializes a new MemoryResultRecordIO object.
@@ -23,7 +25,7 @@ func NewMemoryResultRecordIO(ctx context.Context) MemoryResultRecordIO {
 	return MemoryResultRecordIO{
 		logger:         zerolog.Ctx(ctx),
 		mutex:          &sync.RWMutex{},
-		result_records: make(map[string]ResultRecord),
+		result_records: make(map[string]rrr.ResultRecord),
 	}
 }
 
@@ -41,13 +43,13 @@ func (io MemoryResultRecordIO) Delete(id string) error {
 }
 
 // List() method returns a list of all results in the memory store.
-func (io MemoryResultRecordIO) List() ([]ResultRecord, error) {
+func (io MemoryResultRecordIO) List() ([]rrr.ResultRecord, error) {
 	io.logger.Info().Msg("listing results from memory store")
 	io.mutex.RLock()
 	current_results := io.result_records
 	io.mutex.RUnlock()
 
-	var out []ResultRecord
+	var out []rrr.ResultRecord
 	for _, result := range current_results {
 		out = append(out, result)
 	}
@@ -56,9 +58,9 @@ func (io MemoryResultRecordIO) List() ([]ResultRecord, error) {
 
 // Read() method returns the result with matching id from the memory store.
 // Returns a non-nil error if unable to find a result with matching id.
-func (io MemoryResultRecordIO) Read(id string) (ResultRecord, error) {
+func (io MemoryResultRecordIO) Read(id string) (rrr.ResultRecord, error) {
 	if id == "" {
-		return ResultRecord{}, ErrMemoryResultRecordIOReadEmptyID
+		return rrr.ResultRecord{}, ErrMemoryResultRecordIOReadEmptyID
 	}
 	io.logger.Info().Msgf("reading result id=%s from memory store", id)
 	io.mutex.RLock()
@@ -66,14 +68,14 @@ func (io MemoryResultRecordIO) Read(id string) (ResultRecord, error) {
 
 	r, ok := io.result_records[id]
 	if !ok {
-		return ResultRecord{}, ErrMemoryResultRecordIOReadFailed
+		return rrr.ResultRecord{}, ErrMemoryResultRecordIOReadFailed
 	}
 	return r, nil
 }
 
 // Write() method writes the slice of results to the memory store. Returns a
 // non-nil error if unable to write any result to the store.
-func (io MemoryResultRecordIO) Write(result_records []ResultRecord) error {
+func (io MemoryResultRecordIO) Write(result_records []rrr.ResultRecord) error {
 	io.logger.Info().Msgf("writing %d result(s) to memory store", len(result_records))
 	io.mutex.Lock()
 	defer io.mutex.Unlock()
