@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	git "github.com/go-git/go-git/v5"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -11,7 +12,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/client/az"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // Scanner struct uses private fields to store scanner state and provides methods
@@ -63,7 +64,7 @@ func NewScanner(ctx context.Context, config *cfg.Config, result_io rrr.ResultRec
 		chan_errors:       make(chan error),
 		ctx:               ctx,
 		git_config:        &config.Git,
-		git_manager:       nogit.NewGitManager(&config.Git, ctx, logger),
+		git_manager:       nogit.NewGitManager(&config.Git, ctx),
 		logger:            logger,
 		result_io:         result_io,
 		scan_mutex:        &sync.RWMutex{},
@@ -87,8 +88,16 @@ func (s *Scanner) Run(
 	go s.processRequests(s.chan_requests, chan_request_send, s.chan_errors)
 	// process responses for requests
 	go s.processResponses(chan_response_receive, s.chan_errors)
-	// start the scan
-	go s.scan(s.chan_errors)
+	// start a scan for each configured repository
+	for _, repo := range s.git_config.Scan.Repositories {
+		// use s.git_manager to clone the repository
+		repository, repository_err := s.git_manager.CloneRepo(repo)
+		if repository_err != nil {
+			s.chan_errors <- errors.Wrap(repository_err, ErrMsgCloneRepository)
+			return
+		}
+		go s.scan(repo, repository, s.chan_errors)
+	}
 
 	// listen for quit signal
 	<-chan_quit
@@ -126,7 +135,7 @@ func (s *Scanner) getScanRepository(id string) (*ScanRepository, error) {
 	// retrieve the repository from the map
 	repo, ok := s.scan_repositories[id]
 	if !ok {
-		return nil, errors.Wrapf(ErrScannerGetScanRepositoryNotFound, "repository ID = %s", id)
+		return nil, errors.New(ErrScannerGetScanRepositoryNotFound.Error() + " repository ID =" + id)
 	}
 	return repo, nil
 }
@@ -294,7 +303,6 @@ func (s *Scanner) processErrors(chan_errors_in <-chan error, chan_quit_out chan<
 				close(chan_quit_out)
 				return
 			}
-			s.logger.Info().Msg("error processor received nil error")
 			// handle error to determine if the scanner should continue
 			// TODO
 			close(chan_quit_out)
@@ -306,41 +314,42 @@ func (s *Scanner) processErrors(chan_errors_in <-chan error, chan_quit_out chan<
 // scan() method scans the repositories defined in the git configuration and
 // sends the results to the requests channel. If an error occurs during the
 // scan, the error is sent to the error channel.
-func (s *Scanner) scan(err_chan chan<- error) {
+func (s *Scanner) scan(repo_url string, repository *git.Repository, err_chan chan<- error) {
 	s.logger.Debug().Msg("started Scanner scan")
 	defer s.logger.Debug().Msg("finished Scanner scan")
 
 	if err_chan == nil {
-		s.logger.Panic().Msg("received nil error channel as input")
+		s.logger.Panic().Msg(ErrMsgErrorChannelNil)
+	}
+	if repository == nil {
+		err_chan <- ErrScannerRepositoryNil
 	}
 
-	// scan the configured list of repositories
-	for _, repo := range s.git_config.Scan.Repositories {
-		// create a scan object for the repository
-		scan_repo, err := NewScanRepository(
-			s.ctx,
-			repo,
-			&s.git_config.Scan,
-			s.chan_requests,
-			s.chan_errors,
-		)
-		if err != nil {
-			err_chan <- errors.Wrap(err, "failed to create scan repository object")
-			return
-		}
+	// create a scan object for the repository
+	scan_repo, err := NewScanRepository(NewScanRepositoryInput{
+		ChannelErrors:   s.chan_errors,
+		ChannelRequests: s.chan_requests,
+		Config:          &s.git_config.Scan,
+		Context:         s.ctx,
+		Repository:      repository,
+		URL:             repo_url,
+	})
+	if err != nil {
+		err_chan <- errors.Wrap(err, ErrMsgScanRepositoryCreate)
+		return
+	}
 
-		// add the ScanRepository to the map of scan repositories so that other
-		// methods can access and update the state of the scan for the repository
-		if add_err := s.addScanRepository(scan_repo); add_err != nil {
-			err_chan <- errors.Wrap(add_err, "failed to add scan repository")
-			return
-		}
+	// add the ScanRepository to the map of scan repositories so that other
+	// methods can access and update the state of the scan for the repository
+	if add_err := s.addScanRepository(scan_repo); add_err != nil {
+		err_chan <- errors.Wrap(add_err, ErrMsgAddScanRepository)
+		return
+	}
 
-		// scan the repository for PHI/PII data
-		if scan_err := scan_repo.Scan(s.git_manager); scan_err != nil {
-			err_chan <- errors.Wrap(scan_err, "failed to scan repository")
-			return
-		}
+	// scan the repository for PHI/PII data
+	if scan_err := scan_repo.Scan(s.git_manager); scan_err != nil {
+		err_chan <- errors.Wrap(scan_err, ErrMsgScanRepositoryScan)
+		return
 	}
 
 	// print the counts from TrackerRequests

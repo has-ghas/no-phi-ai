@@ -11,7 +11,7 @@ import (
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // ScanRepository struct embeds the ScanObject struct and adds fields
@@ -38,33 +38,41 @@ type ScanRepository struct {
 	repository       *git.Repository
 }
 
+// NewScanRepositoryInput struct type is used to pass input parameters to the
+// NewScanRepository() function.
+type NewScanRepositoryInput struct {
+	ChannelErrors   chan<- error
+	ChannelRequests chan<- rrr.Request
+	Config          *cfg.GitScanConfig
+	Context         context.Context
+	Repository      *git.Repository
+	URL             string
+}
+
 // NewScanRepository() function initializes a new ScanRepository object.
-func NewScanRepository(
-	ctx context.Context,
-	url string,
-	config *cfg.GitScanConfig,
-	channel_requests chan<- rrr.Request,
-	channel_errors chan<- error,
-) (*ScanRepository, error) {
-	if ctx == nil {
+func NewScanRepository(in NewScanRepositoryInput) (*ScanRepository, error) {
+	if in.Context == nil {
 		return nil, errors.Wrap(ErrScanRepositoryContextNil, ErrMsgScanRepositoryCreate)
 	}
-	if config == nil {
+	if in.Config == nil {
 		return nil, errors.Wrap(ErrScanRepositoryConfigNil, ErrMsgScanRepositoryCreate)
 	}
-	if channel_requests == nil {
+	if in.ChannelRequests == nil {
 		return nil, errors.Wrap(ErrScanRepositoryChannelRequestsNil, ErrMsgScanRepositoryCreate)
 	}
-	if channel_errors == nil {
+	if in.ChannelErrors == nil {
 		return nil, errors.Wrap(ErrScanRepositoryChannelErrorsNil, ErrMsgScanRepositoryCreate)
 	}
+	if in.Repository == nil {
+		return nil, errors.Wrap(ErrScanRepositoryRepositoryNil, ErrMsgScanRepositoryCreate)
+	}
 
-	name, err := nogit.ParseRepoNameFromURL(url)
+	name, err := nogit.ParseRepoNameFromURL(in.URL)
 	if err != nil {
 		return nil, errors.Wrap(err, ErrMsgScanRepositoryCreate)
 	}
 
-	logger := zerolog.Ctx(ctx)
+	logger := zerolog.Ctx(in.Context)
 
 	// create a new KeyTracker for tracking scanned commits
 	tracker_commits, t_err := NewKeyTracker(ScanObjectTypeCommit, logger)
@@ -78,17 +86,17 @@ func NewScanRepository(
 	}
 
 	return &ScanRepository{
-		ID:               url,
+		ID:               in.URL,
 		Name:             name,
-		URL:              url,
+		URL:              in.URL,
 		channel_commits:  make(chan *object.Commit),
-		channel_errors:   channel_errors,
+		channel_errors:   in.ChannelErrors,
 		channel_files:    make(chan *object.File),
-		channel_requests: channel_requests,
-		ctx:              ctx,
-		config:           config,
+		channel_requests: in.ChannelRequests,
+		ctx:              in.Context,
+		config:           in.Config,
 		logger:           logger,
-		repository:       nil,
+		repository:       in.Repository,
 		TrackerCommits:   tracker_commits,
 		TrackerFiles:     tracker_files,
 	}, nil
@@ -103,13 +111,12 @@ func (sr *ScanRepository) GetRepository() *git.Repository {
 // Scan() method runs the scan of the repository and keeps track of the
 // progress of the scan by updating private fields of the ScanRepository.
 func (sr *ScanRepository) Scan(gm *nogit.GitManager) (e error) {
-	sr.logger.Debug().Msgf("starting scan of repository %s", sr.URL)
-
-	// ensure the repository has been cloned locally and its object is
-	// referenced by the ScanRepository.repository field
-	if e = sr.clone(gm); e != nil {
-		return
+	if sr.repository == nil {
+		return errors.Wrap(ErrScanRepositoryRepositoryNil, ErrMsgScanRepositoryScan)
 	}
+
+	sr.logger.Debug().Msgf("started scan of repository %s", sr.URL)
+	defer sr.logger.Debug().Msgf("finished scan of repository %s", sr.URL)
 
 	// get an iterator for the commits in the repository
 	var commit_iterator object.CommitIter
@@ -143,29 +150,6 @@ func (sr *ScanRepository) Scan(gm *nogit.GitManager) (e error) {
 	// print the counts of the scanned commits and files
 	sr.TrackerCommits.PrintCounts()
 	sr.TrackerFiles.PrintCounts()
-
-	return
-}
-
-// clone() method clones the repository from the ScanRepository.URL and
-// sets the ScanRepository.repository field to the git.Repository object
-// that references the cloned repository.
-func (sr *ScanRepository) clone(gm *nogit.GitManager) (e error) {
-	if gm == nil {
-		e = ErrScanRepositoryCloneGitManagerNil
-		return
-	}
-
-	var repo *git.Repository
-	// clone the repository from the URL
-	repo, e = gm.CloneRepo(sr.URL)
-	if e != nil {
-		e = errors.Wrapf(e, "failed to clone repository from %s", sr.URL)
-		return
-	}
-
-	// set the ScanRepository.repository field to associate the git.Repository
-	e = sr.setRepository(repo)
 
 	return
 }
@@ -379,16 +363,4 @@ func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) err
 
 		return nil
 	}
-}
-
-// setRepository() method stores a pointer to the git.Repository associated
-// with the ScanRepository.
-func (sr *ScanRepository) setRepository(repo *git.Repository) (e error) {
-	if repo == nil {
-		e = ErrScanRepositorySetRepositoryNil
-		return
-	}
-
-	sr.repository = repo
-	return
 }

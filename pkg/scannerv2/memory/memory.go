@@ -1,4 +1,4 @@
-package scannerv2
+package memory
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // MemoryResultRecordIO struct provides an in-memory implementation
@@ -34,7 +34,7 @@ func (io MemoryResultRecordIO) Delete(id string) error {
 	if id == "" {
 		return ErrMemoryResultRecordIODeleteEmptyID
 	}
-	io.logger.Info().Msgf("deleting result id=%s from memory store", id)
+	io.logger.Debug().Msgf("deleting result id=%s from memory store", id)
 	io.mutex.Lock()
 	defer io.mutex.Unlock()
 
@@ -44,7 +44,7 @@ func (io MemoryResultRecordIO) Delete(id string) error {
 
 // List() method returns a list of all results in the memory store.
 func (io MemoryResultRecordIO) List() ([]rrr.ResultRecord, error) {
-	io.logger.Info().Msg("listing results from memory store")
+	io.logger.Debug().Msg("listing results from memory store")
 	io.mutex.RLock()
 	current_results := io.result_records
 	io.mutex.RUnlock()
@@ -62,7 +62,7 @@ func (io MemoryResultRecordIO) Read(id string) (rrr.ResultRecord, error) {
 	if id == "" {
 		return rrr.ResultRecord{}, ErrMemoryResultRecordIOReadEmptyID
 	}
-	io.logger.Info().Msgf("reading result id=%s from memory store", id)
+	io.logger.Debug().Msgf("reading result id=%s from memory store", id)
 	io.mutex.RLock()
 	defer io.mutex.RUnlock()
 
@@ -76,7 +76,7 @@ func (io MemoryResultRecordIO) Read(id string) (rrr.ResultRecord, error) {
 // Write() method writes the slice of results to the memory store. Returns a
 // non-nil error if unable to write any result to the store.
 func (io MemoryResultRecordIO) Write(result_records []rrr.ResultRecord) error {
-	io.logger.Info().Msgf("writing %d result(s) to memory store", len(result_records))
+	io.logger.Debug().Msgf("writing %d result(s) to memory store", len(result_records))
 	io.mutex.Lock()
 	defer io.mutex.Unlock()
 

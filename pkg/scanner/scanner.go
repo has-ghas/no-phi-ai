@@ -60,7 +60,7 @@ func NewScanner(config *cfg.Config, ctx context.Context, logger *zerolog.Logger)
 		channelDocuments: make(chan az.AsyncDocumentWrapper, config.Git.Scan.Limits.MaxRequestsOutstanding),
 		// create the channel used to interrupt the scan
 		channelQuit: make(chan error),
-		git:         nogit.NewGitManager(&config.Git, scannerContext, logger),
+		git:         nogit.NewGitManager(&config.Git, scannerContext),
 		gitConfig:   &config.Git,
 		scans:       make(map[string]*ScanTracker),
 	}, nil

@@ -9,7 +9,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 var (
@@ -31,13 +31,18 @@ func TestNewScanRepository(t *testing.T) {
 	channel_requests := make(chan<- rrr.Request)
 
 	t.Run("ValidInput", func(t *testing.T) {
-		repo, err := NewScanRepository(
-			ctx,
-			test_repo_url,
-			test_repo_scan_config,
-			channel_requests,
-			channel_errors,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   channel_errors,
+			ChannelRequests: channel_requests,
+			Config:          test_repo_scan_config,
+			Context:         ctx,
+			Repository:      repository,
+			URL:             test_repo_url,
+		})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, repo)
@@ -48,19 +53,24 @@ func TestNewScanRepository(t *testing.T) {
 		assert.Equal(t, channel_requests, repo.channel_requests)
 		assert.Equal(t, ctx, repo.ctx)
 		assert.NotNil(t, repo.logger)
-		assert.Nil(t, repo.repository)
+		assert.NotNil(t, repo.repository)
 		assert.NotNil(t, repo.TrackerCommits)
 		assert.NotNil(t, repo.TrackerFiles)
 	})
 
 	t.Run("NilContext", func(t *testing.T) {
-		repo, err := NewScanRepository(
-			nil,
-			test_repo_url,
-			test_repo_scan_config,
-			channel_requests,
-			channel_errors,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   channel_errors,
+			ChannelRequests: channel_requests,
+			Config:          test_repo_scan_config,
+			Context:         nil,
+			Repository:      repository,
+			URL:             test_repo_url,
+		})
 
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.ErrorContains(t, err, ErrScanRepositoryContextNil.Error())
@@ -68,13 +78,18 @@ func TestNewScanRepository(t *testing.T) {
 	})
 
 	t.Run("NilChannelErrors", func(t *testing.T) {
-		repo, err := NewScanRepository(
-			ctx,
-			test_repo_url,
-			test_repo_scan_config,
-			channel_requests,
-			nil,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   nil,
+			ChannelRequests: channel_requests,
+			Config:          test_repo_scan_config,
+			Context:         ctx,
+			Repository:      repository,
+			URL:             test_repo_url,
+		})
 
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.ErrorContains(t, err, ErrScanRepositoryChannelErrorsNil.Error())
@@ -82,13 +97,18 @@ func TestNewScanRepository(t *testing.T) {
 	})
 
 	t.Run("NilChannelRequests", func(t *testing.T) {
-		repo, err := NewScanRepository(
-			ctx,
-			test_repo_url,
-			test_repo_scan_config,
-			nil,
-			channel_errors,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   channel_errors,
+			ChannelRequests: nil,
+			Config:          test_repo_scan_config,
+			Context:         ctx,
+			Repository:      repository,
+			URL:             test_repo_url,
+		})
 
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.ErrorContains(t, err, ErrScanRepositoryChannelRequestsNil.Error())
@@ -96,21 +116,25 @@ func TestNewScanRepository(t *testing.T) {
 	})
 
 	t.Run("InvalidURL", func(t *testing.T) {
-		invalidURL := "invalid-url"
-		repo, err := NewScanRepository(
-			ctx,
-			invalidURL,
-			test_repo_scan_config,
-			channel_requests,
-			channel_errors,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   channel_errors,
+			ChannelRequests: channel_requests,
+			Config:          test_repo_scan_config,
+			Context:         ctx,
+			Repository:      repository,
+			URL:             "invalid-url",
+		})
 
 		assert.ErrorContains(t, err, ErrMsgScanRepositoryCreate)
 		assert.Nil(t, repo)
 	})
 }
 
-// TestScanRepository_GetRepository tests the GetRepository() method
+// TestScanRepository_GetRepository() tests the GetRepository() method
 // of the ScanRepository struct.
 func TestScanRepository_GetRepository(t *testing.T) {
 	t.Parallel()
@@ -121,99 +145,25 @@ func TestScanRepository_GetRepository(t *testing.T) {
 	name := "TestRepositoryInit"
 
 	t.Run(name, func(t *testing.T) {
-		repo, err := NewScanRepository(
-			ctx,
-			test_repo_url,
-			test_repo_scan_config,
-			channel_requests,
-			channel_errors,
-		)
+		// initialize the bare *git.Repository
+		repository, init_err := git.Init(memory.NewStorage(), nil)
+		assert.NoError(t, init_err)
+
+		repo, err := NewScanRepository(NewScanRepositoryInput{
+			ChannelErrors:   channel_errors,
+			ChannelRequests: channel_requests,
+			Config:          test_repo_scan_config,
+			Context:         ctx,
+			Repository:      repository,
+			URL:             test_repo_url,
+		})
 		if !assert.NoError(t, err) || !assert.NotNil(t, repo) {
 			t.FailNow()
 		}
 
 		assert.NotEmpty(t, repo.ID)
 
-		// confirm that the repository is nil before adding it to the
-		// ScanRepository object
-		result1 := repo.GetRepository()
-		assert.Nil(t, result1)
-
-		// initialize the bare *git.Repository and add it to the repo object
-		var init_err error
-		repo.repository, init_err = git.Init(memory.NewStorage(), nil)
-		assert.NoError(t, init_err)
-
-		// get the repository after adding it to the ScanRepository object
-		result2 := repo.GetRepository()
-		assert.NotNil(t, result2)
+		result := repo.GetRepository()
+		assert.NotNil(t, result)
 	})
-}
-
-// TestScanRepository_setRepository tests the GetRepository() method
-// of the ScanRepository struct.
-func TestScanRepository_setRepository(t *testing.T) {
-	t.Parallel()
-
-	channel_errors := make(chan<- error)
-	channel_requests := make(chan<- rrr.Request)
-
-	tests := []struct {
-		name                 string
-		expected_init_err    error
-		expected_set_err     error
-		repository_init_func func() (*git.Repository, error)
-	}{
-		{
-			name:              "InvalidRepositoryPointer",
-			expected_init_err: nil,
-			expected_set_err:  ErrScanRepositorySetRepositoryNil,
-			repository_init_func: func() (*git.Repository, error) {
-				return nil, nil
-			},
-		},
-		{
-			name:              "ValidRepositoryInit",
-			expected_init_err: nil,
-			expected_set_err:  nil,
-			repository_init_func: func() (*git.Repository, error) {
-				return git.Init(memory.NewStorage(), nil)
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			repo, err := NewScanRepository(
-				test_context,
-				test_repo_url,
-				test_repo_scan_config,
-				channel_requests,
-				channel_errors,
-			)
-			if !assert.NoError(t, err) || !assert.NotNil(t, repo) {
-				t.FailNow()
-			}
-			assert.NotEmpty(t, repo.ID)
-
-			// initialize the bare *git.Repository and add it to the repo object
-			repository, init_err := test.repository_init_func()
-			if test.expected_init_err == nil {
-				assert.NoError(t, init_err)
-			} else {
-				assert.ErrorIs(t, init_err, test.expected_init_err)
-			}
-
-			set_err := repo.setRepository(repository)
-			if test.expected_set_err == nil {
-				assert.NoError(t, set_err)
-			} else {
-				assert.ErrorIs(t, set_err, test.expected_set_err)
-			}
-
-			// get the repository after adding it to the ScanRepository object
-			result := repo.GetRepository()
-			assert.Equal(t, repository, result)
-		})
-	}
 }

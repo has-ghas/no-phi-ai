@@ -6,6 +6,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner"
 	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/memory"
 )
 
 // initCLI() method is used to initialize clients used by the Manager in the
@@ -16,7 +17,7 @@ func (m *Manager) initCLI() (e error) {
 		// no clients to initialize for the help command
 		return
 	case cfg.CommandRunScanTest:
-		m.scanner_v2, e = scannerv2.NewScanner(m.ctx, m.config, scannerv2.NewMemoryResultRecordIO(m.ctx))
+		m.scanner_v2, e = scannerv2.NewScanner(m.ctx, m.config, memory.NewMemoryResultRecordIO(m.ctx))
 		if e != nil {
 			e = errors.Wrapf(e, "failed to initialize new Scanner for command %s", m.config.Command.Run)
 			return

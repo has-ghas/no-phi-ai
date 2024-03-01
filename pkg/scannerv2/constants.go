@@ -1,7 +1,5 @@
 package scannerv2
 
-const DelimitDocumentID string = "__"
-
 const IgnoreReasonDefault string = "ignored_by_default"
 const IgnoreReasonDirPath string = "directory_path"
 const IgnoreReasonFileExtensionIgnoredByConfig string = "file_extension_ignored_by_config"
@@ -24,7 +22,6 @@ const KeyStateInit = "init"
 const KeyStateError = "error"
 const KeyStatePending = "pending"
 
-const ScanMetricsRefreshSeconds int = 10
 const ScanObjectTypeCommit string = "commit"
 const ScanObjectTypeDocument string = "document"
 const ScanObjectTypeFile string = "file"

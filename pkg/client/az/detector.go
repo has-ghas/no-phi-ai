@@ -1,11 +1,11 @@
-package detector
+package az
 
 import (
 	"context"
 
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // AzAiLanguagePhiDetector struct type is a wrapper for the Run() method.

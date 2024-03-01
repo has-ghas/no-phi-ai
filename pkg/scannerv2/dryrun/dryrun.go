@@ -1,11 +1,11 @@
-package detector
+package dryrun
 
 import (
 	"context"
 
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 const DryRunCategory = "dry-run_category"
@@ -65,7 +65,7 @@ func (detector *DryRunPhiDetector) Run(
 			response.Results = append(response.Results, result)
 			// send the Response to the output channel
 			chan_responses_out <- response
-			logger.Info().Msgf(
+			logger.Debug().Msgf(
 				"dry run detector processed request ID = %s : RepositoryID = %s : CommitID = %s : ObjectID = %s",
 				request.ID,
 				request.Repository.ID,

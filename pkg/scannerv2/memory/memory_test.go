@@ -1,4 +1,4 @@
-package scannerv2
+package memory
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // TestNewMemoryResultRecordIO() unit test function tests the

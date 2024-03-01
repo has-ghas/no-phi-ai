@@ -53,6 +53,10 @@ func TestErrors(t *testing.T) {
 			name: "ErrScannerGetScanRepositoryNotFound",
 		},
 		{
+			err:  ErrScannerRepositoryNil,
+			name: "ErrScannerRepositoryNil",
+		},
+		{
 			err:  ErrScanRepositoryChannelRequestsNil,
 			name: "ErrScanRepositoryChannelRequestsNil",
 		},
@@ -69,8 +73,8 @@ func TestErrors(t *testing.T) {
 			name: "ErrScanRepositoryCloneGitManagerNil",
 		},
 		{
-			err:  ErrScanRepositorySetRepositoryNil,
-			name: "ErrScanRepositorySetRepositoryNil",
+			err:  ErrScanRepositoryRepositoryNil,
+			name: "ErrScanRepositoryRepositoryNil",
 		},
 	}
 

@@ -7,6 +7,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 var (
@@ -214,7 +216,7 @@ func TestNewKeyData(t *testing.T) {
 		},
 	}
 
-	timestamp_test_min := TimestampNow()
+	timestamp_test_min := rrr.TimestampNow()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -223,7 +225,7 @@ func TestNewKeyData(t *testing.T) {
 				assert.ErrorContains(t, err, test.expected_err.Error())
 				return
 			}
-			timestamp_test_max := TimestampNow()
+			timestamp_test_max := rrr.TimestampNow()
 			assert.NoError(t, err)
 			assert.Equal(t, test.expected_data.Code, data.Code)
 			assert.Equal(t, test.expected_data.State, data.State)

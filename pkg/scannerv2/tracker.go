@@ -5,6 +5,8 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 // KeyCodeToState() function is used to convert the provided key code
@@ -70,7 +72,7 @@ func NewKeyData(code int, message string, child_keys []string) (KeyData, error) 
 		return KeyData{}, errors.Wrapf(err, "failed to create new KeyData with code %d", code)
 	}
 
-	now := TimestampNow()
+	now := rrr.TimestampNow()
 
 	children := make(map[string]bool)
 	child_state := false
@@ -282,7 +284,7 @@ func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys
 	// overwrite the message of the existing key data
 	key_data.Message = message
 	// update the latest timestamp for the existing key data
-	key_data.TimestampLatest = TimestampNow()
+	key_data.TimestampLatest = rrr.TimestampNow()
 
 	// process the child_keys for "pending" and "complete" states
 	switch code_in {

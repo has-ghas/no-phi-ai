@@ -5,11 +5,14 @@ import (
 	"testing"
 	"time"
 
+	git "github.com/go-git/go-git/v5"
+	gitmemory "github.com/go-git/go-git/v5/storage/memory"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	"github.com/has-ghas/no-phi-ai/pkg/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/memory"
+	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
 )
 
 var (
@@ -80,7 +83,7 @@ func TestNewScanner(t *testing.T) {
 			scanner, err := NewScanner(
 				test.ctx,
 				config,
-				NewMemoryResultRecordIO(test_context),
+				memory.NewMemoryResultRecordIO(test_context),
 			)
 
 			if test.err_expected {
@@ -109,11 +112,15 @@ func TestScanner_Run(t *testing.T) {
 		resp_chan    <-chan rrr.Response
 	}{
 		{
-			config_func:  test_valid_config_func,
+			config_func: func() *cfg.Config {
+				config := test_valid_config_func()
+				config.Git.Scan.Repositories = []string{"test_repo_url_fail"}
+				return config
+			},
 			ctx:          test_context,
 			err_chan:     make(chan error),
-			err_expected: nil,
-			name:         "Scanner_Run_Pass",
+			err_expected: errors.New("failed to parse repo name : invalid path in URL"),
+			name:         "Scanner_Run_Fail_1",
 			req_chan:     make(chan<- rrr.Request),
 			resp_chan:    make(<-chan rrr.Response),
 		},
@@ -125,7 +132,7 @@ func TestScanner_Run(t *testing.T) {
 			scanner, scanner_err := NewScanner(
 				test.ctx,
 				config,
-				NewMemoryResultRecordIO(test_context),
+				memory.NewMemoryResultRecordIO(test_context),
 			)
 			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
@@ -137,7 +144,7 @@ func TestScanner_Run(t *testing.T) {
 			if test.err_expected == nil {
 				assert.NoErrorf(t, err, test_failed_msg, test.name)
 			} else {
-				assert.Equalf(t, test.err_expected, err, test_failed_msg, test.name)
+				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)
 			}
 		})
 	}
@@ -197,7 +204,7 @@ func TestScanner_addScanRepository(t *testing.T) {
 			scanner, err := NewScanner(
 				test_context,
 				test_valid_config_func(),
-				NewMemoryResultRecordIO(test_context),
+				memory.NewMemoryResultRecordIO(test_context),
 			)
 			if !assert.NoError(t, err) {
 				assert.FailNow(t, "failed to create scanner")
@@ -226,7 +233,11 @@ func TestScanner_addScanRepository(t *testing.T) {
 func TestScanner_processRequests(t *testing.T) {
 	t.Parallel()
 	// create a new Scanner instance
-	scanner, scanner_err := NewScanner(test_context, test_valid_config_func(), NewMemoryResultRecordIO(test_context))
+	scanner, scanner_err := NewScanner(
+		test_context,
+		test_valid_config_func(),
+		memory.NewMemoryResultRecordIO(test_context),
+	)
 	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessRequests") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 	}
@@ -258,7 +269,7 @@ func TestScanner_processResponses(t *testing.T) {
 	scanner, scanner_err := NewScanner(
 		test_context,
 		test_valid_config_func(),
-		NewMemoryResultRecordIO(test_context),
+		memory.NewMemoryResultRecordIO(test_context),
 	)
 	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessResponses") {
 		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
@@ -286,6 +297,11 @@ func TestScanner_processResponses(t *testing.T) {
 // Scanner.
 func TestScanner_scan(t *testing.T) {
 	t.Parallel()
+
+	// initialize the bare *git.Repository
+	repository, init_err := git.Init(gitmemory.NewStorage(), nil)
+	assert.NoError(t, init_err)
+
 	tests := []struct {
 		config_func  func() *cfg.Config
 		ctx          context.Context
@@ -296,9 +312,9 @@ func TestScanner_scan(t *testing.T) {
 		{
 			config_func:  test_valid_config_func,
 			ctx:          test_context,
-			name:         "Scanner_Scan_Pass",
+			name:         "Scanner_Scan_Fail_Repo_URL",
 			err_chan:     make(chan error),
-			err_expected: nil,
+			err_expected: errors.New("failed to parse repo name : invalid path in URL"),
 		},
 		{
 			config_func:  test_valid_config_func,
@@ -315,24 +331,132 @@ func TestScanner_scan(t *testing.T) {
 			scanner, scanner_err := NewScanner(
 				test.ctx,
 				config,
-				NewMemoryResultRecordIO(test_context),
+				memory.NewMemoryResultRecordIO(test_context),
 			)
 			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 			}
 
 			if test.err_chan == nil {
-				assert.Panics(t, func() { scanner.scan(nil) })
+				assert.Panics(t, func() { scanner.scan("test_repo_url", repository, nil) })
 				return
 			}
-			go scanner.scan(test.err_chan)
+			go scanner.scan("test_repo_url", repository, test.err_chan)
 			err := <-test.err_chan
 
 			if test.err_expected == nil {
 				assert.NoErrorf(t, err, test_failed_msg, test.name)
 			} else {
-				assert.Equalf(t, test.err_expected, err, test_failed_msg, test.name)
+				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)
 			}
+		})
+	}
+}
+
+// TestScanner_processResponse unit test function tests the processResponse method of the Scanner object type.
+func TestScanner_processResponse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		expectedErr  error
+		name         string
+		responseFunc func() rrr.Response
+	}{
+		{
+			expectedErr: nil,
+			name:        "Scanner_processResponse_Pass_1",
+			responseFunc: func() rrr.Response {
+				request, request_err := rrr.NewRequest(test_repo_url, "commit_id", "object_id", "test_text_example")
+				if !assert.NoError(t, request_err) {
+					assert.FailNow(t, "failed to create test request and response")
+				}
+				response := rrr.NewResponse(&request)
+				return response
+			},
+		},
+		{
+			expectedErr: ErrProcessResponseNoID,
+			name:        "Scanner_processResponse_Fail_1",
+			responseFunc: func() rrr.Response {
+				request, request_err := rrr.NewRequest(test_repo_url, "commit_id", "object_id", "test_text_example")
+				if !assert.NoError(t, request_err) {
+					assert.FailNow(t, "failed to create test request and response")
+				}
+				response := rrr.NewResponse(&request)
+				// delete the response ID
+				response.ID = ""
+				return response
+			},
+		},
+	}
+
+	scanner, scanner_err := NewScanner(
+		test_context,
+		test_valid_config_func(),
+		memory.NewMemoryResultRecordIO(test_context),
+	)
+	if !assert.NoError(t, scanner_err) {
+		assert.FailNow(t, "failed to create scanner")
+	}
+
+	// initialize the bare *git.Repository
+	repository, init_err := git.Init(gitmemory.NewStorage(), nil)
+	assert.NoError(t, init_err)
+
+	scan_repo, err := NewScanRepository(NewScanRepositoryInput{
+		ChannelErrors:   make(chan<- error),
+		ChannelRequests: make(chan<- rrr.Request),
+		Config:          test_repo_scan_config,
+		Context:         test_context,
+		Repository:      repository,
+		URL:             test_repo_url,
+	})
+
+	if !assert.NoError(t, err) || !assert.NotNil(t, scan_repo) {
+		assert.FailNow(t, "failed to create test repository for Scanner")
+	}
+
+	if add_err := scanner.addScanRepository(scan_repo); !assert.NoError(t, add_err) {
+		assert.FailNow(t, "failed to add test repository to Scanner")
+	}
+	if !assert.NotEmpty(t, scan_repo.ID) {
+		assert.FailNow(t, "failed to create test repository with non-empty ID")
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			chan_errors_out := make(chan error, 1)
+
+			response := test.responseFunc()
+			scanner.processResponse(response, chan_errors_out)
+
+			if test.expectedErr != nil {
+				err := <-chan_errors_out
+				assert.EqualError(t, err, test.expectedErr.Error())
+				return
+			}
+
+			req_key_data, req_key_exists := scanner.TrackerRequests.Get(response.ID)
+			assert.Truef(t, req_key_exists, "failed to find response ID in requests tracker : ID=%s", response.ID)
+			assert.Equal(t, req_key_data.Code, KeyCodeComplete)
+
+			test_scan_repo, test_scan_repo_err := scanner.getScanRepository(scan_repo.ID)
+			if !assert.NoError(t, test_scan_repo_err) {
+				assert.FailNow(t, "failed to get test repository from scanner")
+			}
+
+			commit_key_data, commit_key_exists := test_scan_repo.TrackerCommits.Get(response.Commit.ID)
+			assert.Truef(t, commit_key_exists, "failed to find commit ID in commits tracker : ID=%s", response.Commit.ID)
+			assert.Contains(t, commit_key_data.Children, response.Object.ID)
+			assert.Equal(t, commit_key_data.Code, KeyCodeComplete)
+			assert.Equal(t, commit_key_data.State, KeyStateComplete)
+
+			file_key_data, file_key_exists := test_scan_repo.TrackerFiles.Get(response.Object.ID)
+			assert.Truef(t, file_key_exists, "failed to find file ID in files tracker : ID=%s", response.Object.ID)
+			assert.Contains(t, file_key_data.Children, response.ID)
+			assert.Equal(t, file_key_data.Code, KeyCodeComplete)
+			assert.Equal(t, file_key_data.State, KeyStateComplete)
 		})
 	}
 }
