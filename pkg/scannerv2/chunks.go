@@ -17,7 +17,7 @@ type ChunkFileInput struct {
 	RepoID       string
 }
 
-// ChunkFileToRequests() function reads the input object.File and generaets
+// ChunkFileToRequests() function reads the input object.File and generates
 // slice of requests, where the text in each request is limited to
 // MaxChunkSize characters.
 func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {

@@ -1,8 +1,12 @@
 package scannerv2
 
-import "github.com/google/uuid"
+import (
+	"context"
 
-// MetadataRequestResponset struct contains metadata specific to a request and
+	"github.com/google/uuid"
+)
+
+// MetadataRequestResponse struct contains metadata specific to a request and
 // its associated response, where this metadata is typically copied from the
 // request to the response.
 type MetadataRequestResponse struct {
@@ -114,4 +118,15 @@ func NewResponse(request *Request) Response {
 		MetadataRequestResponse: request.MetadataRequestResponse,
 		Results:                 make([]Result, 0),
 	}
+}
+
+// RequestResponsePhiDetector interface defines the inputs of the
+// Run() method, which is used to process Requests sent from
+// the Scanner and to send Responses back to the Scanner.
+type RequestResponsePhiDetector interface {
+	Run(
+		ctx context.Context,
+		requests <-chan Request,
+		responses chan<- Response,
+	)
 }

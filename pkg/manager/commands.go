@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/has-ghas/no-phi-ai/pkg/detector"
 	"github.com/has-ghas/no-phi-ai/pkg/scannerv2"
 )
 
@@ -82,12 +83,10 @@ func (m *Manager) commandScanTest() (e error) {
 	chan_scan_errors := make(chan error)
 	chan_requests := make(chan scannerv2.Request)
 	chan_responses := make(chan scannerv2.Response)
+	dry_run_detector := detector.NewDryRunPhiDetector()
+
 	go m.scanner_v2.Run(chan_scan_errors, chan_requests, chan_responses)
-	go scannerv2.DryRunPhiDetector(
-		m.ctx,
-		chan_requests,
-		chan_responses,
-	)
+	go dry_run_detector.Run(m.ctx, chan_requests, chan_responses)
 
 	// wait for an error to be returned from the scanner
 	e = <-chan_scan_errors
