@@ -1,4 +1,4 @@
-package scannerv2
+package scanner
 
 import (
 	"testing"

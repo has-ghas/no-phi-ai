@@ -1,4 +1,4 @@
-package scannerv2
+package scanner
 
 import (
 	"sync"
@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 // KeyCodeToState() function is used to convert the provided key code
@@ -150,6 +150,22 @@ func NewKeyTracker(kind string, logger *zerolog.Logger) (*KeyTracker, error) {
 		logger: logger,
 		mu:     &sync.RWMutex{},
 	}, nil
+}
+
+// CheckAllComplete() method checks if the state of all keys in the
+// KeyTracker is KeyCodeComplete. Only returns true if all keys are
+// complete, otherwise returns false.
+func (kt *KeyTracker) CheckAllComplete() bool {
+	kt.mu.RLock()
+	defer kt.mu.RUnlock()
+
+	for _, key_data := range kt.keys {
+		if key_data.Code != KeyCodeComplete {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Get() method gets the KeyData for the provided key, if it exists in the

@@ -1,4 +1,4 @@
-package scannerv2
+package scanner
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 var (

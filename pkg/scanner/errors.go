@@ -2,29 +2,34 @@ package scanner
 
 import "github.com/pkg/errors"
 
+const (
+	ErrMsgAddScanRepository     = "failed to add ScanRepository"
+	ErrMsgCloneRepository       = "failed to clone repository"
+	ErrMsgErrorChannelNil       = "received nil error channel as input"
+	ErrMsgResultWriteFailed     = "failed to write result"
+	ErrMsgScanRepositoryCreate  = "failed to create new ScanRepository object"
+	ErrMsgScanRepositoryScan    = "failed to scan repository"
+	ErrMsgScanTrackerUpdateFile = "failed to update tracker for file %s"
+	ErrMsgScannerCreate         = "failed to create new Scanner"
+	ErrMsgTrackerUpdateCommit   = "failed to update tracker for commit %s"
+)
+
 var (
-	ErrDocumentResponseIsNil             = errors.New("DocumentResponse is nil")
-	ErrDocumentResponseMismatch          = errors.New("DocumentResponse mismatch")
-	ErrDocumentTrackerContextNil         = errors.New("DocumentTracker requires a non-nil context")
-	ErrDocumentTrackerMapInputIsNil      = errors.New("DocumentTracker map input is nil")
-	ErrScanCommitChannelDocumentsNil     = errors.New("ScanCommit channelDocuments channel is nil")
-	ErrScanCommitInputCommitNil          = errors.New("ScanCommit in input Commit pointer is nil")
-	ErrScanCommitContextNil              = errors.New("ScanCommit requires a non-nil context")
-	ErrScanCommitFilesNotSet             = errors.New("ScanCommit files not set")
-	ErrScanCommitFileNil                 = errors.New("ScanCommit cannot scan file with nil pointer")
-	ErrScanCommitScanFileNotFound        = errors.New("ScanFile not found in ScanCommit")
-	ErrScanFileChannelDocumentsNil       = errors.New("ScanFile channelDocuments channel is nil")
-	ErrScanFileContextNil                = errors.New("ScanFile requires a non-nil context")
-	ErrScanFileInputNil                  = errors.New("ScanFile input is nil")
-	ErrScanMetricsInvalidObjectType      = errors.New("ScanMetrics invalid object type")
-	ErrScanObjectDocumentsNotSet         = errors.New("ScanObject documents not set")
-	ErrScanObjectDocumentsNotValid       = errors.New("ScanObject documents not valid")
-	ErrScanOrganizationContextNil        = errors.New("ScanOrganization requires a non-nil context")
-	ErrScanRepositoryChannelDocumentsNil = errors.New("ScanRepository channelDocuments channel is nil")
-	ErrScanRepositoryContextNil          = errors.New("ScanRepository requires a non-nil context")
-	ErrScanRepositoryCommitsNotSet       = errors.New("ScanRepository commits not set")
-	ErrScanRepositoryScanCommitNotFound  = errors.New("ScanCommit not found in ScanRepository")
-	ErrScanTrackerChannelDocumentsNil    = errors.New("ScanTracker channelDocuments channel is nil")
-	ErrScanTrackerContextNil             = errors.New("ScanTracker requires a non-nil context")
-	ErrScanTrackerGitManagerNil          = errors.New("ScanTracker gitManager cannot be nil")
+	ErrKeyAddKeyEmpty                   = errors.New("cannot add key : key is empty")
+	ErrKeyAddKeyExists                  = errors.New("cannot add key : key already exists")
+	ErrKeyCodeInvalid                   = errors.New("invalid key code")
+	ErrKeyTrackerInvalidKind            = errors.New("invalid kind for KeyTracker")
+	ErrKeyUpdateKeyEmpty                = errors.New("cannot update key : key is empty")
+	ErrProcessRequestNoID               = errors.New("cannot process a request without a valid ID")
+	ErrProcessResponseNoID              = errors.New("cannot process a response without a valid ID")
+	ErrScannerAddScanRepositoryEmptyID  = errors.New("cannot add a ScanRepository with an empty ID")
+	ErrScannerAddScanRepositoryNil      = errors.New("cannot add a nil ScanRepository to scanner")
+	ErrScannerGetScanRepositoryNotFound = errors.New("ScanRepository not found")
+	ErrScannerRepositoryNil             = errors.New("Scanner cannot scan repository with nil pointer")
+	ErrScanRepositoryChannelErrorsNil   = errors.New("ScanRepository errors channel is nil")
+	ErrScanRepositoryChannelRequestsNil = errors.New("ScanRepository requests channel is nil")
+	ErrScanRepositoryConfigNil          = errors.New("ScanRepository config is nil")
+	ErrScanRepositoryContextNil         = errors.New("ScanRepository requires a non-nil context")
+	ErrScanRepositoryCloneGitManagerNil = errors.New("ScanRepository git manager is nil")
+	ErrScanRepositoryRepositoryNil      = errors.New("ScanRepository repository pointer is nil")
 )

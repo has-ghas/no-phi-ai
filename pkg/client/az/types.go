@@ -49,11 +49,10 @@ type DocumentError struct {
 // Azure AI Language service API.
 // ref: https://learn.microsoft.com/en-us/rest/api/language/text-analysis-runtime/analyze-text?view=rest-language-2023-04-01&tabs=HTTP#documents
 type DocumentResponse struct {
-	Entities     []Entity           `json:"entities"`
-	ID           string             `json:"id"`
-	RedactedText string             `json:"redacted"`
-	Statistics   DocumentStatistics `json:"statistics"`
-	Warnings     []Warning          `json:"warnings"`
+	Entities   []Entity           `json:"entities"`
+	ID         string             `json:"id"`
+	Statistics DocumentStatistics `json:"statistics"`
+	Warnings   []Warning          `json:"warnings"`
 }
 
 func (dr *DocumentResponse) CountCharacters() int {

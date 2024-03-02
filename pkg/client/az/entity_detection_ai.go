@@ -23,7 +23,6 @@ type EntityDetectionAI struct {
 	dryRun     bool
 	endpoint   string
 	key        string
-	metrics    *ScanReceiverMetrics
 }
 
 // NewEntityDetectionAI() function requires the Azure service host and
@@ -43,7 +42,7 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 	endpoint := fmt.Sprintf(
 		"%s/%s",
 		c.AzureAI.Service,
-		GetDefaultDetectionApi(c.AzureAI.ShowStats),
+		getDefaultDetectionApi(c.AzureAI.ShowStats),
 	)
 
 	return &EntityDetectionAI{
@@ -52,18 +51,20 @@ func NewEntityDetectionAI(c *cfg.Config) (*EntityDetectionAI, error) {
 		dryRun:     c.AzureAI.DryRun,
 		endpoint:   endpoint,
 		key:        c.AzureAI.AuthKey,
-		metrics:    NewScanReceiverMetrics(),
 	}, nil
 }
 
 // DetectPiiEntities() method accepts a PiiEntityRecognitionRequest as
 // input and returns an error (or nil) status depending upon the
 // PiiEntityRecognitionResponse from the Azure AI language service.
-func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData *PiiEntityRecognitionRequest) (detected bool, e error) {
+func (ai *EntityDetectionAI) DetectPiiEntities(
+	ctx context.Context,
+	request_data *PiiEntityRecognitionRequest,
+) (detected bool, e error) {
 	// explicitly set detected to false
 	detected = false
 
-	entity_recognition_results, entity_recognition_err := ai.requestAiResponse(ctx, requestData)
+	entity_recognition_results, entity_recognition_err := ai.requestAiResponse(ctx, request_data)
 	if entity_recognition_err != nil {
 		e = errors.Wrap(entity_recognition_err, "error requesting AI API response")
 		return
@@ -83,11 +84,9 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 			// TODO : remove/replace processing of entities
 			result := struct {
 				ID       string   `json:"id"`
-				Redacted string   `json:"redacted"`
 				Entities []Entity `json:"entities"`
 			}{
 				ID:       doc.ID,
-				Redacted: doc.RedactedText,
 				Entities: entities,
 			}
 			var resultBytes []byte
@@ -105,7 +104,7 @@ func (ai *EntityDetectionAI) DetectPiiEntities(ctx context.Context, requestData 
 }
 
 // GetServiceEndpoint() method return the full URL of the service API endpoint
-func (ai *EntityDetectionAI) GetServiceEndpoint(service string) string {
+func (ai *EntityDetectionAI) GetServiceEndpoint() string {
 	return ai.endpoint
 }
 
@@ -137,7 +136,10 @@ func (ai *EntityDetectionAI) dryRunRespond(ctx context.Context, entity_request *
 // JSON byte array and sends the request to the Azure AI Language service API,
 // then converts the JSON response from the API to PiiEntityRecognitionResults.
 // This method returns an error if the request or response fails.
-func (ai *EntityDetectionAI) requestAiResponse(ctx context.Context, entity_request *PiiEntityRecognitionRequest) (*PiiEntityRecognitionResults, error) {
+func (ai *EntityDetectionAI) requestAiResponse(
+	ctx context.Context,
+	entity_request *PiiEntityRecognitionRequest,
+) (*PiiEntityRecognitionResults, error) {
 	var e error
 
 	// check for dry run mode
@@ -200,4 +202,11 @@ func (ai *EntityDetectionAI) requestAiResponse(ctx context.Context, entity_reque
 func (ai *EntityDetectionAI) setHttpRequestHeaders(req *http.Request) {
 	req.Header.Add("Ocp-Apim-Subscription-Key", ai.key)
 	req.Header.Add("Content-Type", "application/json")
+}
+
+func getDefaultDetectionApi(showStats bool) string {
+	if showStats {
+		return DefaultDetectionApi + ShowStatsParam
+	}
+	return DefaultDetectionApi
 }

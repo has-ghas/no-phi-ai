@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 // TestNewMemoryResultRecordIO() unit test function tests the

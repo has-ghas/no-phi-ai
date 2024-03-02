@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 const DryRunCategory = "dry-run_category"

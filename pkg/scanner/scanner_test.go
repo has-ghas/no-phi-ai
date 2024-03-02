@@ -1,4 +1,4 @@
-package scannerv2
+package scanner
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/memory"
-	"github.com/has-ghas/no-phi-ai/pkg/scannerv2/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/memory"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 	test_context              = context.Background()
 	test_failed_msg           = "failed test : %s"
 	test_log_level            = "trace"
-	test_work_dir             = "/tmp/no-phi-ai/test/pkg/scannerv2"
+	test_work_dir             = "/tmp/no-phi-ai/test/pkg/scanner"
 	test_valid_config_func    = func() *cfg.Config {
 		c := cfg.NewDefaultConfig()
 		c.App.Log.Level = test_log_level
@@ -31,46 +31,51 @@ var (
 		c.Git.WorkDir = test_work_dir
 		return c
 	}
+	test_valid_git_config_func = func() *cfg.GitConfig {
+		c := test_valid_config_func()
+		return &c.Git
+	}
 )
 
 // TestNewScanner unit test function tests the NewScanner() function.
 func TestNewScanner(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		config_func  func() *cfg.Config
+		config_func  func() *cfg.GitConfig
 		ctx          context.Context
 		err_expected bool
 		name         string
 	}{
 		{
-			config_func:  func() *cfg.Config { return &cfg.Config{} },
+			config_func: func() *cfg.GitConfig {
+				return &cfg.GitConfig{}
+			},
 			ctx:          test_context,
-			err_expected: true,
+			err_expected: false,
 			name:         "Config_Empty",
 		},
 		{
-			config_func:  cfg.NewDefaultConfig,
+			config_func: func() *cfg.GitConfig {
+				c := cfg.NewDefaultConfig()
+				return &c.Git
+			},
 			ctx:          test_context,
-			err_expected: true,
+			err_expected: false,
 			name:         "Config_Default",
 		},
 		{
-			config_func: func() *cfg.Config {
+			config_func: func() *cfg.GitConfig {
 				c := cfg.NewDefaultConfig()
-				c.App.Log.Level = test_log_level
-				// c.AzureAI.AuthKey = "test-auth-key" <- missing creates error
-				c.AzureAI.DryRun = true
-				c.AzureAI.Service = "test-service"
 				c.Git.Auth.Token = "test-token"
 				c.Git.WorkDir = test_work_dir
-				return c
+				return &c.Git
 			},
 			ctx:          test_context,
-			err_expected: true,
+			err_expected: false,
 			name:         "Config_Missing_AzureAIAuthKey",
 		},
 		{
-			config_func:  test_valid_config_func,
+			config_func:  test_valid_git_config_func,
 			ctx:          test_context,
 			err_expected: false,
 			name:         "Config_Valid",
@@ -103,7 +108,7 @@ func TestNewScanner(t *testing.T) {
 func TestScanner_Run(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		config_func  func() *cfg.Config
+		config_func  func() *cfg.GitConfig
 		ctx          context.Context
 		err_chan     chan error
 		err_expected error
@@ -112,10 +117,10 @@ func TestScanner_Run(t *testing.T) {
 		resp_chan    <-chan rrr.Response
 	}{
 		{
-			config_func: func() *cfg.Config {
+			config_func: func() *cfg.GitConfig {
 				config := test_valid_config_func()
 				config.Git.Scan.Repositories = []string{"test_repo_url_fail"}
-				return config
+				return &config.Git
 			},
 			ctx:          test_context,
 			err_chan:     make(chan error),
@@ -138,7 +143,7 @@ func TestScanner_Run(t *testing.T) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 			}
 
-			go scanner.Run(test.err_chan, test.req_chan, test.resp_chan)
+			go scanner.Scan(test.err_chan, test.req_chan, test.resp_chan)
 			err := <-test.err_chan
 
 			if test.err_expected == nil {
@@ -203,7 +208,7 @@ func TestScanner_addScanRepository(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			scanner, err := NewScanner(
 				test_context,
-				test_valid_config_func(),
+				test_valid_git_config_func(),
 				memory.NewMemoryResultRecordIO(test_context),
 			)
 			if !assert.NoError(t, err) {
@@ -235,7 +240,7 @@ func TestScanner_processRequests(t *testing.T) {
 	// create a new Scanner instance
 	scanner, scanner_err := NewScanner(
 		test_context,
-		test_valid_config_func(),
+		test_valid_git_config_func(),
 		memory.NewMemoryResultRecordIO(test_context),
 	)
 	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessRequests") {
@@ -243,118 +248,28 @@ func TestScanner_processRequests(t *testing.T) {
 	}
 
 	// create input and output channels
+	chan_quit_in := make(chan struct{})
 	chan_requests_in := make(chan rrr.Request)
 	chan_requests_out := make(chan<- rrr.Request)
 	chan_errors_out := make(chan error)
 
 	// start the requests processor
-	go scanner.processRequests(chan_requests_in, chan_requests_out, chan_errors_out)
+	go scanner.processRequests(chan_quit_in, chan_requests_in, chan_requests_out, chan_errors_out)
 
 	chan_requests_in <- rrr.Request{}
 	err2 := <-chan_errors_out
 	assert.Equal(t, ErrProcessRequestNoID, err2)
 
-	// close the input channel to stop the requests processor
+	// close the input channels to stop goroutines
 	close(chan_requests_in)
+	close(chan_quit_in)
 
 	// wait for the requests processor to finish
 	time.Sleep(time.Millisecond) // Sleep for a short duration to allow goroutine to exit
 }
 
-// TestScanner_processResponses() unit test function tests the
-// processResponses method of the Scanner object type.
-func TestScanner_processResponses(t *testing.T) {
-	t.Parallel()
-	// create a new Scanner instance
-	scanner, scanner_err := NewScanner(
-		test_context,
-		test_valid_config_func(),
-		memory.NewMemoryResultRecordIO(test_context),
-	)
-	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessResponses") {
-		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
-	}
-
-	// create input and output channels
-	chan_responses_in := make(chan rrr.Response)
-	chan_errors_out := make(chan error)
-
-	// start the response processor
-	go scanner.processResponses(chan_responses_in, chan_errors_out)
-
-	chan_responses_in <- rrr.NewResponse(&rrr.Request{})
-	err2 := <-chan_errors_out
-	assert.Equal(t, ErrProcessResponseNoID, err2)
-
-	// close the input channel to stop the response processor
-	close(chan_responses_in)
-
-	// wait for the response processor to finish
-	time.Sleep(time.Millisecond) // Sleep for a short duration to allow goroutine to exit
-}
-
-// TestScanner_scan() unit test function tests the scan() method of a new
-// Scanner.
-func TestScanner_scan(t *testing.T) {
-	t.Parallel()
-
-	// initialize the bare *git.Repository
-	repository, init_err := git.Init(gitmemory.NewStorage(), nil)
-	assert.NoError(t, init_err)
-
-	tests := []struct {
-		config_func  func() *cfg.Config
-		ctx          context.Context
-		err_chan     chan error
-		err_expected error
-		name         string
-	}{
-		{
-			config_func:  test_valid_config_func,
-			ctx:          test_context,
-			name:         "Scanner_Scan_Fail_Repo_URL",
-			err_chan:     make(chan error),
-			err_expected: errors.New("failed to parse repo name : invalid path in URL"),
-		},
-		{
-			config_func:  test_valid_config_func,
-			ctx:          test_context,
-			name:         "Scanner_Scan_Panic_Channel_Nil",
-			err_chan:     nil,
-			err_expected: nil,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			config := test.config_func()
-			scanner, scanner_err := NewScanner(
-				test.ctx,
-				config,
-				memory.NewMemoryResultRecordIO(test_context),
-			)
-			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
-				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
-			}
-
-			if test.err_chan == nil {
-				assert.Panics(t, func() { scanner.scan("test_repo_url", repository, nil) })
-				return
-			}
-			go scanner.scan("test_repo_url", repository, test.err_chan)
-			err := <-test.err_chan
-
-			if test.err_expected == nil {
-				assert.NoErrorf(t, err, test_failed_msg, test.name)
-			} else {
-				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)
-			}
-		})
-	}
-}
-
 // TestScanner_processResponse unit test function tests the processResponse method of the Scanner object type.
-func TestScanner_processResponse(t *testing.T) {
+func TestScanner_processResponseNow(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -392,7 +307,7 @@ func TestScanner_processResponse(t *testing.T) {
 
 	scanner, scanner_err := NewScanner(
 		test_context,
-		test_valid_config_func(),
+		test_valid_git_config_func(),
 		memory.NewMemoryResultRecordIO(test_context),
 	)
 	if !assert.NoError(t, scanner_err) {
@@ -411,6 +326,9 @@ func TestScanner_processResponse(t *testing.T) {
 		Repository:      repository,
 		URL:             test_repo_url,
 	})
+	// is_scan_complete must be set in order to ensure that the
+	// processResponse method does not block indefinitely
+	scan_repo.is_scan_complete = true
 
 	if !assert.NoError(t, err) || !assert.NotNil(t, scan_repo) {
 		assert.FailNow(t, "failed to create test repository for Scanner")
@@ -426,15 +344,19 @@ func TestScanner_processResponse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 
-			chan_errors_out := make(chan error, 1)
+			chan_errors_out := make(chan error)
+			chan_quit_out := make(chan struct{})
 
 			response := test.responseFunc()
-			scanner.processResponse(response, chan_errors_out)
+			t.Log("response.ID:", response.ID)
+			go scanner.processResponse(response, chan_errors_out, chan_quit_out)
 
 			if test.expectedErr != nil {
 				err := <-chan_errors_out
 				assert.EqualError(t, err, test.expectedErr.Error())
 				return
+			} else {
+				<-chan_quit_out
 			}
 
 			req_key_data, req_key_exists := scanner.TrackerRequests.Get(response.ID)
@@ -457,6 +379,101 @@ func TestScanner_processResponse(t *testing.T) {
 			assert.Contains(t, file_key_data.Children, response.ID)
 			assert.Equal(t, file_key_data.Code, KeyCodeComplete)
 			assert.Equal(t, file_key_data.State, KeyStateComplete)
+		})
+	}
+}
+
+// TestScanner_processResponses() unit test function tests the
+// processResponses() method of the Scanner object type.
+func TestScanner_processResponses(t *testing.T) {
+	t.Parallel()
+	// create a new Scanner instance
+	scanner, scanner_err := NewScanner(
+		test_context,
+		test_valid_git_config_func(),
+		memory.NewMemoryResultRecordIO(test_context),
+	)
+	if !assert.NoErrorf(t, scanner_err, test_failed_msg, "ProcessResponses") {
+		assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
+	}
+
+	// create input and output channels
+	chan_quit := make(chan struct{})
+	chan_responses_in := make(chan rrr.Response)
+	chan_errors_out := make(chan error)
+
+	// start the response processor
+	go scanner.processResponses(chan_responses_in, chan_errors_out, chan_quit)
+
+	chan_responses_in <- rrr.NewResponse(&rrr.Request{})
+	err2 := <-chan_errors_out
+	assert.Equal(t, ErrProcessResponseNoID, err2)
+
+	// close the input channel to stop the response processor
+	close(chan_responses_in)
+
+	// wait for the response processor to finish
+	time.Sleep(time.Millisecond) // Sleep for a short duration to allow goroutine to exit
+}
+
+// TestScanner_scanRepository() unit test function tests the scanRepository()
+// method of a new Scanner.
+func TestScanner_scanRepository(t *testing.T) {
+	t.Parallel()
+
+	// initialize the bare *git.Repository
+	repository, init_err := git.Init(gitmemory.NewStorage(), nil)
+	assert.NoError(t, init_err)
+
+	tests := []struct {
+		config_func  func() *cfg.GitConfig
+		ctx          context.Context
+		err_chan     chan error
+		err_expected error
+		name         string
+	}{
+		{
+			config_func:  test_valid_git_config_func,
+			ctx:          test_context,
+			name:         "Scanner_Scan_Fail_Repo_URL",
+			err_chan:     make(chan error),
+			err_expected: errors.New("failed to parse repo name : invalid path in URL"),
+		},
+		{
+			config_func:  test_valid_git_config_func,
+			ctx:          test_context,
+			name:         "Scanner_Scan_Panic_Channel_Nil",
+			err_chan:     nil,
+			err_expected: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := test.config_func()
+			scanner, scanner_err := NewScanner(
+				test.ctx,
+				config,
+				memory.NewMemoryResultRecordIO(test_context),
+			)
+			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
+				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
+			}
+
+			if test.err_chan == nil {
+				assert.Panics(t, func() {
+					scanner.scanRepository("test_repo_url", repository, nil)
+				})
+				return
+			}
+			go scanner.scanRepository("test_repo_url", repository, test.err_chan)
+			err := <-test.err_chan
+
+			if test.err_expected == nil {
+				assert.NoErrorf(t, err, test_failed_msg, test.name)
+			} else {
+				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)
+			}
 		})
 	}
 }
