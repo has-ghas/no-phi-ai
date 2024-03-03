@@ -1,59 +1,107 @@
 package scanner
 
 import (
+	"context"
+	"sync"
+
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 
-	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	nogit "github.com/has-ghas/no-phi-ai/pkg/client/no-git"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
 // ScanRepository struct embeds the ScanObject struct and adds fields
 // and methods specific to scanning a git.Repository.
 type ScanRepository struct {
-	// embed the ScanObject struct, along with its fields and methods
-	ScanObject
+	// ID should be the (escaped) URL of the repository.
+	ID string `json:"id"`
+	// Name is the friendly name of the object, such as the name
+	// of the file, organization, repository, etc.
+	Name string `json:"name"`
+	// The unique URL associated with the object.
+	URL string `json:"url"`
 
-	commits    []*ScanCommit
-	repository *git.Repository
+	TrackerCommits *KeyTracker
+	TrackerFiles   *KeyTracker
+
+	channel_commits  chan *object.Commit
+	channel_errors   chan<- error
+	channel_files    chan *object.File
+	channel_requests chan<- rrr.Request
+	config           *cfg.GitScanConfig
+	ctx              context.Context
+	is_scan_complete bool
+	logger           *zerolog.Logger
+	repository       *git.Repository
+}
+
+// NewScanRepositoryInput struct type is used to pass input parameters to the
+// NewScanRepository() function.
+type NewScanRepositoryInput struct {
+	ChannelErrors   chan<- error
+	ChannelRequests chan<- rrr.Request
+	Config          *cfg.GitScanConfig
+	Context         context.Context
+	Repository      *git.Repository
+	URL             string
 }
 
 // NewScanRepository() function initializes a new ScanRepository object.
-func NewScanRepository(
-	url string,
-	channel_documents chan<- az.AsyncDocumentWrapper,
-	channel_quit <-chan error,
-) (*ScanRepository, error) {
-	if scannerContext == nil {
-		return nil, ErrScanRepositoryContextNil
+func NewScanRepository(in NewScanRepositoryInput) (*ScanRepository, error) {
+	if in.Context == nil {
+		return nil, errors.Wrap(ErrScanRepositoryContextNil, ErrMsgScanRepositoryCreate)
 	}
-	if channel_documents == nil {
-		return nil, ErrScanRepositoryChannelDocumentsNil
+	if in.Config == nil {
+		return nil, errors.Wrap(ErrScanRepositoryConfigNil, ErrMsgScanRepositoryCreate)
+	}
+	if in.ChannelRequests == nil {
+		return nil, errors.Wrap(ErrScanRepositoryChannelRequestsNil, ErrMsgScanRepositoryCreate)
+	}
+	if in.ChannelErrors == nil {
+		return nil, errors.Wrap(ErrScanRepositoryChannelErrorsNil, ErrMsgScanRepositoryCreate)
+	}
+	if in.Repository == nil {
+		return nil, errors.Wrap(ErrScanRepositoryRepositoryNil, ErrMsgScanRepositoryCreate)
 	}
 
-	name, err := nogit.ParseRepoNameFromURL(url)
+	name, err := nogit.ParseRepoNameFromURL(in.URL)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, ErrMsgScanRepositoryCreate)
+	}
+
+	logger := zerolog.Ctx(in.Context)
+
+	// create a new KeyTracker for tracking scanned commits
+	tracker_commits, t_err := NewKeyTracker(ScanObjectTypeCommit, logger)
+	if t_err != nil {
+		return nil, errors.Wrap(t_err, ErrMsgScanRepositoryCreate)
+	}
+	// create a new KeyTracker for tracking scanned files
+	tracker_files, t_err := NewKeyTracker(ScanObjectTypeFile, logger)
+	if t_err != nil {
+		return nil, errors.Wrap(t_err, ErrMsgScanRepositoryCreate)
 	}
 
 	return &ScanRepository{
-		ScanObject: *NewScanObject(&ScanObjectInput{
-			ChannelDocuments: channel_documents,
-			ChannelQuit:      channel_quit,
-			ID:               "",
-			Name:             name,
-			ObjectType:       ScanObjectTypeRepository,
-			URL:              url,
-		}),
-		commits:    []*ScanCommit{},
-		repository: nil,
+		ID:               in.URL,
+		Name:             name,
+		URL:              in.URL,
+		channel_commits:  make(chan *object.Commit),
+		channel_errors:   in.ChannelErrors,
+		channel_files:    make(chan *object.File),
+		channel_requests: in.ChannelRequests,
+		ctx:              in.Context,
+		config:           in.Config,
+		is_scan_complete: false,
+		logger:           logger,
+		repository:       in.Repository,
+		TrackerCommits:   tracker_commits,
+		TrackerFiles:     tracker_files,
 	}, nil
-}
-
-// GetCommits() method returns a slice of ScanCommit object pointers.
-func (sr *ScanRepository) GetCommits() []*ScanCommit {
-	return sr.commits
 }
 
 // GetRepository() method returns a pointer to the git.Repository
@@ -64,16 +112,13 @@ func (sr *ScanRepository) GetRepository() *git.Repository {
 
 // Scan() method runs the scan of the repository and keeps track of the
 // progress of the scan by updating private fields of the ScanRepository.
-func (sr *ScanRepository) Scan(gm *nogit.GitManager, commit_scan_func func(*object.Commit) error) (e error) {
-	// ensure the ScanRepository.Status reflects that the scan has started
-	sr.Status.SetStarted("")
-
-	// ensure the repository has been cloned locally and its object is
-	// referenced by the ScanRepository.repository field
-	if e = sr.clone(gm); e != nil {
-		sr.Status.SetErrored(e.Error())
-		return
+func (sr *ScanRepository) Scan(gm *nogit.GitManager) (e error) {
+	if sr.repository == nil {
+		return errors.Wrap(ErrScanRepositoryRepositoryNil, ErrMsgScanRepositoryScan)
 	}
+
+	sr.logger.Debug().Msgf("started scan of repository %s", sr.URL)
+	defer sr.logger.Debug().Msgf("finished scan of repository %s", sr.URL)
 
 	// get an iterator for the commits in the repository
 	var commit_iterator object.CommitIter
@@ -82,161 +127,241 @@ func (sr *ScanRepository) Scan(gm *nogit.GitManager, commit_scan_func func(*obje
 		if commit_iterator != nil {
 			commit_iterator.Close()
 		}
-		// mark the ScanRepository.Status as errored
-		sr.Status.SetErrored(e.Error())
 		return
 	}
 	defer commit_iterator.Close()
 
-	// wrap the provided commit_scan_func() function with a method that tracks
-	// each scanned commit by adding a ScanCommit object to the list of
-	// commits in the ScanRepository, which allows for scan tracking
-	commit_scan_func_wrapper := sr.scanCommitWrapperFunc(commit_scan_func)
+	wg := &sync.WaitGroup{}
+	// start a goroutine to process commits generated by the iterator
+	wg.Add(1)
+	go sr.processCommits(wg)
 
-	// TODO : modify the object.CommitIter to allow for skipping commits
-	//        that have already been scanned and/or limiting the scan to
-	//        only the diffs between the current and previous commits
-
-	// iterate through the commits in the repository, processing each commit
-	// with the commit_scan_func_wrapper() function, which contains the provided
-	// commit_scan_func() function wrapped with the scan tracking code
-	e = commit_iterator.ForEach(commit_scan_func_wrapper)
+	// iterate through the commits in the repository history
+	e = commit_iterator.ForEach(sr.scanCommit)
 	if e != nil {
 		e = errors.Wrapf(e, "failed to iterate through commits in repository %s", sr.URL)
-		// mark the ScanRepository.Status as errored
-		sr.Status.SetErrored(e.Error())
 		// return any error encountered while iterating through the commits
 		return
 	}
+	// close the channel for commits to signal the processCommits goroutine
+	// to finish
+	close(sr.channel_commits)
+	// wait for the processCommits goroutine to finish
+	wg.Wait()
 
-	// ensure the ScanRepository.Status reflects that the scan has completed
-	sr.Status.SetCompleted(ResultCleanCode, "")
-
-	return
-}
-
-// ScanForPHI() method runs the scan of the repository for any PHI/PII.
-func (sr *ScanRepository) ScanForPHI(gm *nogit.GitManager) error {
-	return sr.Scan(gm, sr.scanCommitForPHI)
-}
-
-// clone() method clones the repository from the ScanRepository.URL and
-// sets the ScanRepository.repository field to the git.Repository object
-// that references the cloned repository.
-func (sr *ScanRepository) clone(gm *nogit.GitManager) (e error) {
-	var repo *git.Repository
-	// clone the repository from the URL
-	repo, e = gm.CloneRepo(sr.URL)
-	if e != nil {
-		e = errors.Wrapf(e, "failed to clone repository from %s", sr.URL)
-		return
-	}
-
-	// set the ScanRepository.repository field to associate the git.Repository
-	sr.setRepository(repo)
+	// set the scan complete flag to true
+	sr.is_scan_complete = true
 
 	return
 }
 
-// findScanCommit() method uses the provided object.Commit to find the
-// associated ScanCommit object in the ScanRepository.commits slice.
-func (sr *ScanRepository) findScanCommit(commit *object.Commit) (*ScanCommit, error) {
-	for _, sc := range sr.commits {
-		if sc.GetHash().String() == commit.ID().String() {
-			// return the pointer to the associated ScanCommit object if it
-			// is found, along with a nil error
-			return sc, nil
-		}
-	}
-	// return a non-nil error if the ScanCommit object was not found
-	return nil, ErrScanRepositoryScanCommitNotFound
-}
+func (sr *ScanRepository) processCommits(wg_main *sync.WaitGroup) {
+	defer wg_main.Done()
 
-// postScanCommit() method updates Status of the ScanCommit object stored
-// in the ScanRepository.commits list to reflect the successful completion
-// of the scan for that commit.
-func (sr *ScanRepository) postScanCommit(scan_commit *ScanCommit) {
-	// update the scan_commit.Status in order to track the successful
-	// completion of the scan for that commit
-	scan_commit.Status.SetCompleted(ResultCleanCode, "")
-}
+	wg_loop := &sync.WaitGroup{}
+	processCommit := func(commit *object.Commit) {
+		defer wg_loop.Done()
 
-// preScanCommit() method creates a new ScanCommit object from the
-// input object.Commit and adds it to the list of commits tracked
-// in the ScanRepository.
-func (sr *ScanRepository) preScanCommit(commit *object.Commit) (*ScanCommit, error) {
-	// create a new ScanCommit object from the input object.Commit
-	scan_commit, err := NewScanCommit(commit, sr.channelDocuments, sr.channelQuit)
-	if err != nil {
-		return nil, errors.Wrap(err, "scan repository failed to create new scan commit")
-	}
-	// ensure the ScanCommit.Status reflects that the scan has started
-	scan_commit.Status.SetStarted("")
-	// add the new ScanCommit object to the state of the ScanRepository
-	sr.commits = append(sr.commits, scan_commit)
-
-	return scan_commit, nil
-}
-
-// scanCommitForPHI() method scans the files in the tree of the object.Commit
-// for any PHI/PII and updates the ScanCommit object associated with the
-// object.Commit in the ScanRepository.commits list to reflect the progress
-// of the scan.
-func (sr *ScanRepository) scanCommitForPHI(commit *object.Commit) error {
-	// get the tree of objects associated with the commit
-	tree, err := commit.Tree()
-	if err != nil {
-		return err
-	}
-	// use the object.Commmit to lookup the associated ScanCommit object
-	// in the ScanRepository.commits slice
-	sc, sc_err := sr.findScanCommit(commit)
-	if sc_err != nil {
-		return sc_err
-	}
-
-	// iterate through the files in the commit tree, processing each file with
-	// the sc.ScanFile() function, which contains the PHI/PII scanning logic
-	// wrapped with code to track the progress of the file scan
-	err = tree.Files().ForEach(sc.scanFile)
-	if err != nil {
-		return err
-	}
-
-	return err
-}
-
-// scanCommitWrapperFunc() method returns a function that wraps the provided
-// scan_func function with code to track the progress of the scan for the
-// object.Commit and update the status of the ScanCommit object in the
-// ScanRepository.commits list.
-func (sr *ScanRepository) scanCommitWrapperFunc(scan_func func(*object.Commit) error) func(*object.Commit) error {
-	return func(commit *object.Commit) error {
-		// perform pre-scan processing of the object.Commit in order to track
-		// a new ScanCommit object and associate it with this ScanRepository
-		scan_commit, scan_commit_err := sr.preScanCommit(commit)
-		if scan_commit_err != nil {
-			return scan_commit_err
+		update_code, init_err := sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodeInit,
+			"",
+			[]string{},
+		)
+		if init_err != nil {
+			sr.channel_errors <- errors.Wrapf(init_err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+			return
 		}
 
-		// run the provided scan_func function and process any error
-		if scan_func_err := scan_func(commit); scan_func_err != nil {
-			// update the scan_commit.Status in order to track the error
-			scan_commit.Status.SetErrored(scan_func_err.Error())
-			// return the error
-			return scan_func_err
+		// skip commits that have already been scanned
+		if update_code > KeyCodeInit {
+			sr.logger.Trace().Msgf(
+				"repository %s : skipping previously scanned commit %s",
+				sr.URL,
+				commit.Hash.String(),
+			)
+			return
 		}
 
-		// perform post-scan processing in order to update the status of the
-		// ScanCommit within this ScanRepository
-		sr.postScanCommit(scan_commit)
+		sr.logger.Debug().Msgf(
+			"repository %s : scanning commit %s",
+			sr.URL,
+			commit.Hash.String(),
+		)
+
+		// get the tree of objects associated with the commit
+		tree, err := commit.Tree()
+		if err != nil {
+			_, err = sr.TrackerCommits.Update(
+				commit.Hash.String(),
+				KeyCodeError,
+				err.Error(),
+				[]string{},
+			)
+			if err != nil {
+				err = errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+				sr.channel_errors <- err
+				return
+			}
+		}
+
+		// iterate through the files in the commit tree
+		err = tree.Files().ForEach(sr.scanFile(commit))
+		if err != nil {
+			err = errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+			sr.TrackerCommits.Update(
+				commit.Hash.String(),
+				KeyCodeError,
+				err.Error(),
+				[]string{},
+			)
+			sr.channel_errors <- err
+			return
+		}
+
+		// attempt to update the commit code to "complete" status, but ignore any error
+		// and accept that the commit may be left in "pending" status if the key has
+		// children that are still in an incomplete (bool=false) state
+		sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodeComplete,
+			"",
+			[]string{},
+		)
+	}
+	for commit := range sr.channel_commits {
+		wg_loop.Add(1)
+		go processCommit(commit)
+	}
+	wg_loop.Wait()
+}
+
+// scanCommit() method scans the tree of the object.Commit for files
+// containing any PHI/PII entities.
+func (sr *ScanRepository) scanCommit(commit *object.Commit) error {
+	// send the commit to the channel for processing
+	sr.channel_commits <- commit
+	return nil
+}
+
+// scanFile() method returns an anonymous function that can be used to iterate through
+// the files in the associated commit tree and scan each file for PHI/PII entities.
+func (sr *ScanRepository) scanFile(commit *object.Commit) func(*object.File) error {
+	return func(file *object.File) error {
+		code, err := sr.TrackerFiles.Update(
+			file.Hash.String(),
+			KeyCodeInit,
+			"",
+			[]string{},
+		)
+		if err != nil {
+			return errors.Wrapf(err, ErrMsgScanTrackerUpdateFile, file.Hash.String())
+		}
+		// skip files that have already been scanned
+		if code > KeyCodeInit {
+			sr.logger.Trace().Msgf(
+				"commit %s : skipping previously scanned file %s : code=%d",
+				commit.Hash.String(),
+				file.Hash.String(),
+				code,
+			)
+			return nil
+		}
+
+		// check if the file should be ignored instead of scanned
+		should_ignore, ignore_reason := IgnoreFileObject(
+			file,
+			sr.config.Extensions,
+			sr.config.IgnoreExtensions,
+		)
+		if should_ignore {
+			sr.logger.Trace().Msgf(
+				"commit %s : skipping scan of file %s : %s",
+				commit.Hash.String(),
+				file.Hash.String(),
+				ignore_reason,
+			)
+			_, err = sr.TrackerFiles.Update(
+				file.Hash.String(),
+				KeyCodeIgnore,
+				ignore_reason,
+				[]string{},
+			)
+			return err
+		}
+		if ignore_reason != "" {
+			sr.logger.Warn().Msgf(
+				"commit %s : file %s : ignore reason => %s",
+				commit.Hash.String(),
+				file.Hash.String(),
+				ignore_reason,
+			)
+		}
+		// update tracker for the associated commit to indicate "pending" status
+		_, err = sr.TrackerCommits.Update(
+			commit.Hash.String(),
+			KeyCodePending,
+			"",
+			[]string{file.Hash.String()},
+		)
+		if err != nil {
+			return errors.Wrapf(err, ErrMsgTrackerUpdateCommit, commit.Hash.String())
+		}
+
+		sr.logger.Debug().Msgf(
+			"commit %s : scanning file %s : %s",
+			commit.Hash.String(),
+			file.Hash.String(),
+			file.Name,
+		)
+		// generate and send requests for the contents of the file
+		requests, r_err := rrr.ChunkFileToRequests(rrr.ChunkFileInput{
+			CommitID:     commit.Hash.String(),
+			File:         file,
+			MaxChunkSize: sr.config.Limits.MaxRequestChunkSize,
+			RepoID:       sr.ID,
+		})
+		if r_err != nil {
+			sr.logger.Error().Err(r_err).Msgf("commit %s : failed to generate requests for file %s", commit.Hash.String(), file.Hash.String())
+			sr.TrackerFiles.Update(
+				file.Hash.String(),
+				KeyCodeError,
+				r_err.Error(),
+				[]string{},
+			)
+			return r_err
+		}
+		if len(requests) == 0 {
+			if file.Size > 0 {
+				sr.logger.Warn().Msgf(
+					"commit %s : no requests generated for file ID=%s : Name=%s : size=%d",
+					commit.Hash.String(),
+					file.Hash.String(),
+					file.Name,
+					file.Size,
+				)
+			}
+			// no requests were generated for the file, so nothing is pending
+			// and there is no need to update the tracker
+			return nil
+		}
+		var child_keys []string
+		// send each request to the channel for processing
+		for _, req := range requests {
+			child_keys = append(child_keys, req.ID)
+			sr.channel_requests <- req
+		}
+		// update tracker to mark the scan of this file as "pending"
+		_, err = sr.TrackerFiles.Update(
+			file.Hash.String(),
+			KeyCodePending,
+			"",
+			child_keys,
+		)
+		if err != nil {
+			return errors.Wrapf(err, ErrMsgScanTrackerUpdateFile, file.Hash.String())
+		}
 
 		return nil
 	}
-}
-
-// setRepository() method stores a pointer to the git.Repository
-// associated with the ScanRepository.
-func (sr *ScanRepository) setRepository(repo *git.Repository) {
-	sr.repository = repo
 }

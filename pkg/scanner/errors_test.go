@@ -1,4 +1,4 @@
-package scannerv2
+package scanner
 
 import (
 	"testing"
@@ -12,10 +12,6 @@ func TestErrors(t *testing.T) {
 		err  error
 		name string
 	}{
-		{
-			err:  ErrDocumentResponseMismatch,
-			name: "ErrDocumentResponseMismatch",
-		},
 		{
 			err:  ErrKeyAddKeyEmpty,
 			name: "ErrKeyAddKeyEmpty",
@@ -45,8 +41,28 @@ func TestErrors(t *testing.T) {
 			name: "ErrProcessResponseNoID",
 		},
 		{
-			err:  ErrScanRepositoryChannelDocumentsNil,
-			name: "ErrScanRepositoryChannelDocumentsNil",
+			err:  ErrScannerAddScanRepositoryEmptyID,
+			name: "ErrScannerAddScanRepositoryEmptyID",
+		},
+		{
+			err:  ErrScannerAddScanRepositoryNil,
+			name: "ErrScannerAddScanRepositoryNil",
+		},
+		{
+			err:  ErrScannerGetScanRepositoryNotFound,
+			name: "ErrScannerGetScanRepositoryNotFound",
+		},
+		{
+			err:  ErrScannerRepositoryNil,
+			name: "ErrScannerRepositoryNil",
+		},
+		{
+			err:  ErrScanRepositoryChannelRequestsNil,
+			name: "ErrScanRepositoryChannelRequestsNil",
+		},
+		{
+			err:  ErrScanRepositoryConfigNil,
+			name: "ErrScanRepositoryConfigNil",
 		},
 		{
 			err:  ErrScanRepositoryContextNil,
@@ -55,6 +71,10 @@ func TestErrors(t *testing.T) {
 		{
 			err:  ErrScanRepositoryCloneGitManagerNil,
 			name: "ErrScanRepositoryCloneGitManagerNil",
+		},
+		{
+			err:  ErrScanRepositoryRepositoryNil,
+			name: "ErrScanRepositoryRepositoryNil",
 		},
 	}
 

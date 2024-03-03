@@ -22,6 +22,7 @@ const NOPHI_GH_PRIVATE_KEY string = "NOPHI_GH_PRIVATE_KEY"
 const NOPHI_GH_V3APIURL string = "NOPHI_GH_V3APIURL"
 const NOPHI_GH_V4APIURL string = "NOPHI_GH_V4APIURL"
 const NOPHI_GH_WEBHOOK_SECRET = "NOPHI_GH_WEBHOOK_SECRET"
+const NOPHI_GIT_SCAN_MAX_REQUEST_CHUNK_SIZE = "NOPHI_GIT_SCAN_MAX_REQUEST_CHUNK_SIZE"
 const NOPHI_GIT_WORKDIR = "NOPHI_GIT_WORKDIR"
 const NOPHI_MAX_REQUESTS_OUTSTANDING = "NOPHI_MAX_REQUESTS_OUTSTANDING"
 const NOPHI_SERVER_ADDRESS string = "NOPHI_SERVER_ADDRESS"
@@ -44,6 +45,7 @@ func GetAppEnvVars() []string {
 		NOPHI_GH_V3APIURL,
 		NOPHI_GH_V4APIURL,
 		NOPHI_GH_WEBHOOK_SECRET,
+		NOPHI_GIT_SCAN_MAX_REQUEST_CHUNK_SIZE,
 		NOPHI_GIT_WORKDIR,
 		NOPHI_MAX_REQUESTS_OUTSTANDING,
 		NOPHI_SERVER_ADDRESS,
@@ -90,6 +92,13 @@ func (c *Config) envOverride() error {
 		if err == nil {
 			c.Git.Scan.Limits.MaxRequestsOutstanding = maxRequestsOutstandingInt
 		}
+	}
+	if chunkSize := os.Getenv(NOPHI_GIT_SCAN_MAX_REQUEST_CHUNK_SIZE); chunkSize != "" {
+		chunkSizeInt, err := strconv.Atoi(chunkSize)
+		if err != nil {
+			return errors.Wrap(err, "failed parsing NOPHI_GIT_SCAN_MAX_REQUEST_CHUNK_SIZE env var")
+		}
+		c.Git.Scan.Limits.MaxRequestChunkSize = chunkSizeInt
 	}
 	if gitWorkDir := os.Getenv(NOPHI_GIT_WORKDIR); gitWorkDir != "" {
 		c.Git.WorkDir = gitWorkDir

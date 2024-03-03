@@ -13,11 +13,17 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 )
 
+type GitRepoCloner interface {
+	CloneRepo(repo_url string) (*git.Repository, error)
+}
+
 // GitManager struct provides a management wrapper for interacting with raw
 // git repositories using the go-git library. Provides methods for cloning a
 // repository and scanning for PHI/PII by recursively walking the
 // repository's file tree.
 type GitManager struct {
+	GitRepoCloner
+
 	config *cfg.GitConfig
 	ctx    context.Context
 	logger *zerolog.Logger
@@ -25,11 +31,11 @@ type GitManager struct {
 
 // NewGitManager returns a new GitManager instance for cloning, scanning, and
 // other interactions with git repositories.
-func NewGitManager(config *cfg.GitConfig, ctx context.Context, logger *zerolog.Logger) *GitManager {
+func NewGitManager(config *cfg.GitConfig, ctx context.Context) *GitManager {
 	return &GitManager{
 		config: config,
 		ctx:    ctx,
-		logger: logger,
+		logger: zerolog.Ctx(ctx),
 	}
 }
 
@@ -76,7 +82,7 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 		return nil, dir_err
 	}
 
-	gm.logger.Debug().Ctx(gm.ctx).Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
+	gm.logger.Debug().Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
 	repo, err := git.PlainCloneContext(gm.ctx, clone_dir, false, &git.CloneOptions{
 		//Progress: os.Stdout,
 		URL:  repo_url,
@@ -85,14 +91,14 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 
 	if err != nil {
 		if err == git.ErrRepositoryAlreadyExists {
-			gm.logger.Info().Ctx(gm.ctx).Msgf("git repo already cloned : opening from %s", clone_dir)
+			gm.logger.Info().Msgf("git repo already cloned : opening from %s", clone_dir)
 			return git.PlainOpen(clone_dir)
 		} else {
-			gm.logger.Error().Ctx(gm.ctx).Err(err).Msgf("failed to clone git repo from %s", repo_url)
+			gm.logger.Error().Err(err).Msgf("failed to clone git repo from %s", repo_url)
 			return nil, err
 		}
 	}
-	gm.logger.Info().Ctx(gm.ctx).Msgf("cloned git repo to %s", clone_dir)
+	gm.logger.Info().Msgf("cloned git repo to %s", clone_dir)
 
 	return repo, nil
 }
@@ -113,7 +119,7 @@ func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, erro
 		return gm.getAuthMethodPublicKey()
 	} else if gm.config.Auth.Token != "" {
 		// TODO : implement token auth
-		return nil, errors.New("token auth not implemented")
+		return nil, nil
 	} else {
 		return nil, errors.New("failed to get auth method due to missing config")
 	}

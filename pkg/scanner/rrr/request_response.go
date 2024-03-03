@@ -1,10 +1,12 @@
-package scannerv2
+package rrr
 
 import (
+	"context"
+
 	"github.com/google/uuid"
 )
 
-// MetadataRequestResponset struct contains metadata specific to a request and
+// MetadataRequestResponse struct contains metadata specific to a request and
 // its associated response, where this metadata is typically copied from the
 // request to the response.
 type MetadataRequestResponse struct {
@@ -64,18 +66,21 @@ type Request struct {
 }
 
 // NewRequest() function initializes a new Request object.
-func NewRequest(repo_id, commit_id, object_id string) (*Request, error) {
+func NewRequest(repo_id, commit_id, object_id, text string) (Request, error) {
 	if repo_id == "" {
-		return nil, ErrNewRequestEmptyRepositoryID
+		return Request{}, ErrNewRequestEmptyRepositoryID
 	}
 	if object_id == "" {
-		return nil, ErrNewRequestEmptyObjectID
+		return Request{}, ErrNewRequestEmptyObjectID
 	}
 	if commit_id == "" {
-		return nil, ErrNewRequestEmptyCommitID
+		return Request{}, ErrNewRequestEmptyCommitID
+	}
+	if text == "" {
+		return Request{}, ErrNewRequestEmptyText
 	}
 
-	return &Request{
+	return Request{
 		MetadataRequestResponse: MetadataRequestResponse{
 			ID: uuid.NewString(),
 			Commit: MetadataRequestResponseCommit{
@@ -92,11 +97,13 @@ func NewRequest(repo_id, commit_id, object_id string) (*Request, error) {
 				Stop:  0,
 			},
 		},
+		Text: text,
 	}, nil
 }
 
 // Response struct embeds the Request struct and adds fields and methods
 // specific to the response, such as the results from the detection services.
+// A single Response may contain many results for the same scanned text.
 type Response struct {
 	// embed the MetadataRequestResponse struct
 	MetadataRequestResponse
@@ -104,34 +111,22 @@ type Response struct {
 	Results []Result `json:"results"`
 }
 
-// NewResponse() function initializes a new Response object from the
-// provided request.
-func NewResponse(req *Request) *Response {
-	return &Response{
-		MetadataRequestResponse: req.MetadataRequestResponse,
+// NewResponse() function initializes a new Response object from the provided
+// Request.
+func NewResponse(request *Request) Response {
+	return Response{
+		MetadataRequestResponse: request.MetadataRequestResponse,
 		Results:                 make([]Result, 0),
 	}
 }
 
-// Result struct contains the detection results from a single service in
-// response to a request to process a portion of the source object/text.
-type Result struct {
-	// Category is the result type
-	Category string `json:"category"`
-	// ConfidenceScore is specific to the extracted result and
-	// is a value between 0 and 1, where 0.99 represents extreme
-	// confidence that PHI/PII data was detected.
-	ConfidenceScore float64 `json:"confidenceScore"`
-	// Length is the number of characters in the result text.
-	Length int `json:"length"`
-	// Offset is the start position of the result text within the source
-	// text, which may have its own offset.
-	Offset int `json:"offset"`
-	// Subcategory is the (optional) result sub-type.
-	Subcategory string `json:"subcategory"`
-	// Text is the result text as it appears in the document
-	Text string `json:"text"`
-	// Service is the location (e.g. URL) of the service that processed
-	// the request and returned the result.
-	Service string `json:"service"`
+// RequestResponsePhiDetector interface defines the inputs of the
+// Run() method, which is used to process Requests sent from
+// the Scanner and to send Responses back to the Scanner.
+type RequestResponsePhiDetector interface {
+	Run(
+		ctx context.Context,
+		requests <-chan Request,
+		responses chan<- Response,
+	)
 }

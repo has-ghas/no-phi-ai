@@ -49,3 +49,23 @@ func TestNewEntityDetectionAI(t *testing.T) {
 		t.Errorf("Expected error message: 'EntityDetectionAI requires a valid service address', but got: %v", err.Error())
 	}
 }
+
+// Test_getDefaultDetectionApi() unit test function tests the
+// getDefaultDetectionApi() function.
+func Test_getDefaultDetectionApi(t *testing.T) {
+	// Test case 1: showStats is true
+	showStats := true
+	expectedResult := DefaultDetectionApi + ShowStatsParam
+	result := getDefaultDetectionApi(showStats)
+	if result != expectedResult {
+		t.Errorf("Expected result: %s, but got: %s", expectedResult, result)
+	}
+
+	// Test case 2: showStats is false
+	showStats = false
+	expectedResult = DefaultDetectionApi
+	result = getDefaultDetectionApi(showStats)
+	if result != expectedResult {
+		t.Errorf("Expected result: %s, but got: %s", expectedResult, result)
+	}
+}

@@ -6,8 +6,14 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
+	"github.com/has-ghas/no-phi-ai/pkg/client/az"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/dryrun"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/memory"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
 )
 
+// commandHelp() method is used to run the "help" (default) command.
 func (m *Manager) commandHelp() (e error) {
 	fmt.Printf("CLI Help Information for %s app:\n", m.config.App.Name)
 	fmt.Println("\tAvailable Commands:")
@@ -58,30 +64,66 @@ func (m *Manager) commandScanOrg() (e error) {
 // commandScanRepos() method is used to run the "scan-repos" command, which
 // is used to scan the contents of a single git repository for PHI/PII.
 func (m *Manager) commandScanRepos() (e error) {
+	m.scanner, e = scanner.NewScanner(m.ctx, &m.config.Git, memory.NewMemoryResultRecordIO(m.ctx))
+	if e != nil {
+		e = errors.Wrapf(e, "failed to initialize new Scanner for command %s", m.config.Command.Run)
+		return
+	}
 
 	if len(m.config.Git.Scan.Repositories) == 0 {
 		e = errors.New("no repositories specified for scan")
 		return
 	}
 
-	e = m.scanner.ScanReposForPHI()
+	var ai *az.EntityDetectionAI
+	ai, e = az.NewEntityDetectionAI(m.config)
+	if e != nil {
+		e = errors.Wrapf(e, "failed to initialize new EntityDetectionAI for command %s", m.config.Command.Run)
+		return
+	}
+	az_ai_detector := az.NewAzAiLanguagePhiDetector(ai)
+	chan_scan_errors := make(chan error)
+	chan_requests := make(chan rrr.Request)
+	chan_responses := make(chan rrr.Response)
+
+	go m.scanner.Scan(chan_scan_errors, chan_requests, chan_responses)
+	go az_ai_detector.Run(m.ctx, chan_requests, chan_responses)
+
+	// wait for an error to be returned from the scanner
+	e = <-chan_scan_errors
+	if e != nil {
+		e = errors.Wrapf(e, "failed to run command '%s' ", m.config.Command.Run)
+		return
+	}
+	m.logger.Info().Msgf("command '%s' completed successfully", m.config.Command.Run)
+
 	return
 }
 
 // commandScanTest() method is used to run the "scan-test" command, which is
 // for development use only.
 func (m *Manager) commandScanTest() (e error) {
+	m.scanner, e = scanner.NewScanner(m.ctx, &m.config.Git, memory.NewMemoryResultRecordIO(m.ctx))
+	if e != nil {
+		e = errors.Wrapf(e, "failed to initialize new Scanner for command %s", m.config.Command.Run)
+		return
+	}
 
 	if len(m.config.Git.Scan.Repositories) == 0 {
 		e = errors.New("no repositories specified for scan")
 		return
 	}
 
-	err_chan := make(chan error)
-	go m.scanner_v2.Run(err_chan)
+	chan_scan_errors := make(chan error)
+	chan_requests := make(chan rrr.Request)
+	chan_responses := make(chan rrr.Response)
+	dry_run_detector := dryrun.NewDryRunPhiDetector()
+
+	go m.scanner.Scan(chan_scan_errors, chan_requests, chan_responses)
+	go dry_run_detector.Run(m.ctx, chan_requests, chan_responses)
 
 	// wait for an error to be returned from the scanner
-	e = <-err_chan
+	e = <-chan_scan_errors
 	if e != nil {
 		e = errors.Wrapf(e, "failed to run command '%s' ", m.config.Command.Run)
 		return
