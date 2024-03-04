@@ -15,11 +15,6 @@ const (
 )
 
 var (
-	ErrKeyAddKeyEmpty                   = errors.New("cannot add key : key is empty")
-	ErrKeyAddKeyExists                  = errors.New("cannot add key : key already exists")
-	ErrKeyCodeInvalid                   = errors.New("invalid key code")
-	ErrKeyTrackerInvalidKind            = errors.New("invalid kind for KeyTracker")
-	ErrKeyUpdateKeyEmpty                = errors.New("cannot update key : key is empty")
 	ErrProcessRequestNoID               = errors.New("cannot process a request without a valid ID")
 	ErrProcessResponseNoID              = errors.New("cannot process a response without a valid ID")
 	ErrScannerAddScanRepositoryEmptyID  = errors.New("cannot add a ScanRepository with an empty ID")

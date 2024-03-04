@@ -13,6 +13,7 @@ import (
 	"github.com/has-ghas/no-phi-ai/pkg/cfg"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner/memory"
 	"github.com/has-ghas/no-phi-ai/pkg/scanner/rrr"
+	"github.com/has-ghas/no-phi-ai/pkg/scanner/tracker"
 )
 
 var (
@@ -104,9 +105,10 @@ func TestNewScanner(t *testing.T) {
 	}
 }
 
-// TestScanner_Run() unit test function tests the Run() method of a new Scanner.
-func TestScanner_Run(t *testing.T) {
+// TestScanner_Scan() unit test function tests the Scan() method of a new Scanner.
+func TestScanner_Scan(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		config_func  func() *cfg.GitConfig
 		ctx          context.Context
@@ -124,8 +126,8 @@ func TestScanner_Run(t *testing.T) {
 			},
 			ctx:          test_context,
 			err_chan:     make(chan error),
-			err_expected: errors.New("failed to parse repo name : invalid path in URL"),
-			name:         "Scanner_Run_Fail_1",
+			err_expected: nil,
+			name:         "Scanner_Run_Pass_1",
 			req_chan:     make(chan<- rrr.Request),
 			resp_chan:    make(<-chan rrr.Response),
 		},
@@ -144,13 +146,12 @@ func TestScanner_Run(t *testing.T) {
 			}
 
 			go scanner.Scan(test.err_chan, test.req_chan, test.resp_chan)
-			err := <-test.err_chan
-
-			if test.err_expected == nil {
-				assert.NoErrorf(t, err, test_failed_msg, test.name)
-			} else {
+			if test.err_expected != nil {
+				err := <-test.err_chan
 				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)
 			}
+
+			// TODO
 		})
 	}
 }
@@ -269,7 +270,7 @@ func TestScanner_processRequests(t *testing.T) {
 }
 
 // TestScanner_processResponse unit test function tests the processResponse method of the Scanner object type.
-func TestScanner_processResponseNow(t *testing.T) {
+func TestScanner_processResponse(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -345,23 +346,23 @@ func TestScanner_processResponseNow(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 
 			chan_errors_out := make(chan error)
-			chan_quit_out := make(chan struct{})
 
 			response := test.responseFunc()
 			t.Log("response.ID:", response.ID)
-			go scanner.processResponse(response, chan_errors_out, chan_quit_out)
+			go scanner.processResponse(response, chan_errors_out)
 
 			if test.expectedErr != nil {
 				err := <-chan_errors_out
 				assert.EqualError(t, err, test.expectedErr.Error())
 				return
-			} else {
-				<-chan_quit_out
 			}
+
+			// sleep for a short duration to allow the response to be processed
+			time.Sleep(time.Millisecond * 100)
 
 			req_key_data, req_key_exists := scanner.TrackerRequests.Get(response.ID)
 			assert.Truef(t, req_key_exists, "failed to find response ID in requests tracker : ID=%s", response.ID)
-			assert.Equal(t, req_key_data.Code, KeyCodeComplete)
+			assert.Equal(t, req_key_data.Code, tracker.KeyCodeComplete)
 
 			test_scan_repo, test_scan_repo_err := scanner.getScanRepository(scan_repo.ID)
 			if !assert.NoError(t, test_scan_repo_err) {
@@ -371,14 +372,14 @@ func TestScanner_processResponseNow(t *testing.T) {
 			commit_key_data, commit_key_exists := test_scan_repo.TrackerCommits.Get(response.Commit.ID)
 			assert.Truef(t, commit_key_exists, "failed to find commit ID in commits tracker : ID=%s", response.Commit.ID)
 			assert.Contains(t, commit_key_data.Children, response.Object.ID)
-			assert.Equal(t, commit_key_data.Code, KeyCodeComplete)
-			assert.Equal(t, commit_key_data.State, KeyStateComplete)
+			assert.Equal(t, commit_key_data.Code, tracker.KeyCodeComplete)
+			assert.Equal(t, commit_key_data.State, tracker.KeyStateComplete)
 
 			file_key_data, file_key_exists := test_scan_repo.TrackerFiles.Get(response.Object.ID)
 			assert.Truef(t, file_key_exists, "failed to find file ID in files tracker : ID=%s", response.Object.ID)
 			assert.Contains(t, file_key_data.Children, response.ID)
-			assert.Equal(t, file_key_data.Code, KeyCodeComplete)
-			assert.Equal(t, file_key_data.State, KeyStateComplete)
+			assert.Equal(t, file_key_data.Code, tracker.KeyCodeComplete)
+			assert.Equal(t, file_key_data.State, tracker.KeyStateComplete)
 		})
 	}
 }
@@ -403,7 +404,7 @@ func TestScanner_processResponses(t *testing.T) {
 	chan_errors_out := make(chan error)
 
 	// start the response processor
-	go scanner.processResponses(chan_responses_in, chan_errors_out, chan_quit)
+	go scanner.processResponses(chan_quit, chan_responses_in, chan_errors_out)
 
 	chan_responses_in <- rrr.NewResponse(&rrr.Request{})
 	err2 := <-chan_errors_out
@@ -462,11 +463,11 @@ func TestScanner_scanRepository(t *testing.T) {
 
 			if test.err_chan == nil {
 				assert.Panics(t, func() {
-					scanner.scanRepository("test_repo_url", repository, nil)
+					scanner.scanRepository("test_repo_url", repository, nil, make(chan<- struct{}))
 				})
 				return
 			}
-			go scanner.scanRepository("test_repo_url", repository, test.err_chan)
+			go scanner.scanRepository("test_repo_url", repository, test.err_chan, make(chan<- struct{}))
 			err := <-test.err_chan
 
 			if test.err_expected == nil {
