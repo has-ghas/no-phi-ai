@@ -1,4 +1,4 @@
-package scanner
+package tracker
 
 import (
 	"os"
@@ -281,17 +281,6 @@ func TestNewKeyTracker(t *testing.T) {
 			name:         "ValidKindCommit",
 		},
 		{
-			kind: ScanObjectTypeDocument,
-			expected: &KeyTracker{
-				keys:   make(map[string]KeyData, 0),
-				kind:   ScanObjectTypeDocument,
-				logger: &logger,
-				mu:     &sync.RWMutex{},
-			},
-			expected_err: nil,
-			name:         "ValidKindDocument",
-		},
-		{
 			kind: ScanObjectTypeFile,
 			expected: &KeyTracker{
 				keys:   make(map[string]KeyData, 0),
@@ -301,17 +290,6 @@ func TestNewKeyTracker(t *testing.T) {
 			},
 			expected_err: nil,
 			name:         "ValidKindFile",
-		},
-		{
-			kind: ScanObjectTypeRepository,
-			expected: &KeyTracker{
-				keys:   make(map[string]KeyData, 0),
-				kind:   ScanObjectTypeRepository,
-				logger: &logger,
-				mu:     &sync.RWMutex{},
-			},
-			expected_err: nil,
-			name:         "ValidKindRepository",
 		},
 		{
 			kind: ScanObjectTypeRequestResponse,
@@ -344,6 +322,222 @@ func TestNewKeyTracker(t *testing.T) {
 			assert.Equal(t, test.expected.kind, tracker.kind)
 			assert.Equal(t, test.expected.logger, tracker.logger)
 			assert.Equal(t, test.expected.mu, tracker.mu)
+		})
+	}
+}
+
+// TestKeyTracker_CheckAllComplete() unit test function tests the
+// CheckAllComplete() method of the KeyTracker type.
+func TestKeyTracker_CheckAllComplete(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(os.Stdout)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	type testData struct {
+		key   string
+		codes []int
+	}
+
+	tests := []struct {
+		name            string
+		data            []testData
+		expect_complete bool
+		kind            string
+	}{
+		{
+			name: "Init_1",
+			data: []testData{
+				{
+					codes: []int{KeyCodeInit},
+					key:   "A",
+				},
+			},
+			expect_complete: false,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "Init_2",
+			data: []testData{
+				{
+					codes: []int{KeyCodeInit},
+					key:   "A",
+				},
+			},
+			expect_complete: false,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "Complete_1",
+			data: []testData{
+				{
+					codes: []int{KeyCodeComplete},
+					key:   "A",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "Complete_2",
+			data: []testData{
+				{
+					codes: []int{KeyCodeComplete, 2},
+					key:   "A",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "Error_1",
+			data: []testData{
+				{
+					codes: []int{KeyCodeError},
+					key:   "A",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "Error_2",
+			data: []testData{
+				{
+					codes: []int{KeyCodeError, -1},
+					key:   "A",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeFile,
+		},
+		{
+			name: "Mixed_1",
+			data: []testData{
+				{
+					codes: []int{KeyCodeInit},
+					key:   "A",
+				},
+				{
+					codes: []int{KeyCodeInit, KeyCodeError, KeyCodeInit},
+					key:   "B",
+				},
+				{
+					codes: []int{KeyCodeIgnore},
+					key:   "C",
+				},
+				{
+					codes: []int{KeyCodeInit, KeyCodePending, KeyCodeError},
+					key:   "D",
+				},
+				{
+					codes: []int{KeyCodeInit, KeyCodeError, KeyCodeComplete},
+					key:   "E",
+				},
+			},
+			expect_complete: false,
+			kind:            ScanObjectTypeFile,
+		},
+		{
+			name: "Progression",
+			data: []testData{
+				{
+					codes: []int{-2, -1, 0, 1, 2},
+					key:   "A",
+				},
+				{
+					codes: []int{
+						KeyCodeInit,
+						KeyCodeError,
+						KeyCodeIgnore,
+						KeyCodePending,
+						KeyCodeComplete,
+					},
+					key: "B",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeFile,
+		},
+		{
+			name: "Regression",
+			data: []testData{
+				{
+					codes: []int{2, 1, 0, -1, -2},
+					key:   "A",
+				},
+				{
+					codes: []int{
+						KeyCodeComplete,
+						KeyCodePending,
+						KeyCodeIgnore,
+						KeyCodeError,
+						KeyCodeInit,
+					},
+					key: "B",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeCommit,
+		},
+		{
+			name: "ReInit",
+			data: []testData{
+				{
+					codes: []int{
+						-2,
+						-1,
+						0,
+						1,
+						2,
+						-2,
+						-2,
+						-2,
+					},
+					key: "A",
+				},
+				{
+					codes: []int{
+						KeyCodeInit,
+						KeyCodeError,
+						KeyCodeIgnore,
+						KeyCodePending,
+						KeyCodeComplete,
+						KeyCodeInit,
+						KeyCodeInit,
+						KeyCodeInit,
+					},
+					key: "B",
+				},
+			},
+			expect_complete: true,
+			kind:            ScanObjectTypeCommit,
+		},
+	}
+
+	for _, test_i := range tests {
+		t.Run(test_i.name, func(t *testing.T) {
+			tracker, err := NewKeyTracker(test_i.kind, &logger)
+			if !assert.NoError(t, err) {
+				t.FailNow()
+			}
+
+			// for each key in the test data, apply the series of update codes
+			for _, d := range test_i.data {
+				for _, code := range d.codes {
+					_, update_err := tracker.Update(d.key, code, "", []string{})
+					assert.NoError(t, update_err)
+				}
+			}
+
+			// get the data for the key after applying all updates
+			is_complete := tracker.CheckAllComplete()
+			assert.Equal(
+				t,
+				test_i.expect_complete,
+				is_complete,
+				"CheckAllComplete() did not return the expected value",
+			)
 		})
 	}
 }
@@ -524,7 +718,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Pending:  0,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Mixed_1",
@@ -558,7 +752,7 @@ func TestKeyTracker_GetCounts(t *testing.T) {
 				Pending:  1,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Progression",
@@ -912,7 +1106,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:    KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "CodeError",
@@ -937,7 +1131,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:    KeyStateError,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Progression",
@@ -983,7 +1177,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:   KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Regression",
@@ -1026,7 +1220,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:    KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "ReInit",
@@ -1057,7 +1251,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:    KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "RepeatUpdatePending",
@@ -1141,7 +1335,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:   KeyStatePending,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "RepeatUpdateComplete",
@@ -1225,7 +1419,7 @@ func TestKeyTracker_Update(t *testing.T) {
 				State:   KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 	}
 
@@ -1477,7 +1671,7 @@ func TestKeyTracker_Concurrent_Update(t *testing.T) {
 				State:   KeyStatePending,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "RepeatUpdateComplete",
@@ -1671,7 +1865,7 @@ func TestKeyTracker_Concurrent_Update(t *testing.T) {
 				State:   KeyStateComplete,
 			},
 			final_err: nil,
-			kind:      ScanObjectTypeDocument,
+			kind:      ScanObjectTypeFile,
 		},
 	}
 

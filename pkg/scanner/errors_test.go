@@ -13,26 +13,6 @@ func TestErrors(t *testing.T) {
 		name string
 	}{
 		{
-			err:  ErrKeyAddKeyEmpty,
-			name: "ErrKeyAddKeyEmpty",
-		},
-		{
-			err:  ErrKeyAddKeyExists,
-			name: "ErrKeyAddKeyExists",
-		},
-		{
-			err:  ErrKeyCodeInvalid,
-			name: "ErrKeyCodeInvalid",
-		},
-		{
-			err:  ErrKeyTrackerInvalidKind,
-			name: "ErrKeyTrackerInvalidKind",
-		},
-		{
-			err:  ErrKeyUpdateKeyEmpty,
-			name: "ErrKeyUpdateKeyEmpty",
-		},
-		{
 			err:  ErrProcessRequestNoID,
 			name: "ErrProcessRequestNoID",
 		},

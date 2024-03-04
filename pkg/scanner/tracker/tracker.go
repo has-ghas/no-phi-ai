@@ -1,4 +1,4 @@
-package scanner
+package tracker
 
 import (
 	"sync"
@@ -132,12 +132,8 @@ func NewKeyTracker(kind string, logger *zerolog.Logger) (*KeyTracker, error) {
 	switch kind {
 	case ScanObjectTypeCommit:
 		kind = ScanObjectTypeCommit
-	case ScanObjectTypeDocument:
-		kind = ScanObjectTypeDocument
 	case ScanObjectTypeFile:
 		kind = ScanObjectTypeFile
-	case ScanObjectTypeRepository:
-		kind = ScanObjectTypeRepository
 	case ScanObjectTypeRequestResponse:
 		kind = ScanObjectTypeRequestResponse
 	default:
@@ -160,7 +156,7 @@ func (kt *KeyTracker) CheckAllComplete() bool {
 	defer kt.mu.RUnlock()
 
 	for _, key_data := range kt.keys {
-		if key_data.Code != KeyCodeComplete {
+		if key_data.Code == KeyCodeInit || key_data.Code == KeyCodePending {
 			return false
 		}
 	}
@@ -176,10 +172,12 @@ func (kt *KeyTracker) Get(key string) (key_data KeyData, exists bool) {
 		return
 	}
 
+	// lock the tracker for reading
 	kt.mu.RLock()
-	key_data, exists = kt.keys[key]
-	kt.mu.RUnlock()
+	// unlock the tracker after the function returns
+	defer kt.mu.RUnlock()
 
+	key_data, exists = kt.keys[key]
 	return
 }
 
@@ -230,7 +228,31 @@ func (st *KeyTracker) GetKeysData() map[string]KeyData {
 	// unlock the tracker after the function returns
 	defer st.mu.RUnlock()
 
-	return st.keys
+	// make a copy of the map to return
+	out := make(map[string]KeyData, 0)
+	for key, key_data := range st.keys {
+		out[key] = key_data
+	}
+
+	return out
+}
+
+// GetKeysDataForCode() method returns a filtered copy of the KeyTracker
+// keys map, where the only keys in the returned map are those with a
+// Code of KeyCodePending.
+func (st *KeyTracker) GetKeysDataForCode(code int) (map[string]KeyData, error) {
+	if err := KeyCodeValidate(code); err != nil {
+		return nil, errors.Wrapf(err, "failed to get keys data for code %d", code)
+	}
+
+	out := make(map[string]KeyData, 0)
+	for key, key_data := range st.GetKeysData() {
+		if key_data.Code == code {
+			out[key] = key_data
+		}
+	}
+
+	return out, nil
 }
 
 func (st *KeyTracker) PrintCodes() []int {
